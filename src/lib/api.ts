@@ -1,4 +1,4 @@
-import { Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from '../types';
+import { User, AuthResponse, Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from '../types';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -10,6 +10,29 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Auth
+  getUsers: () => fetchJson<User[]>('/api/users'),
+  login: (data: { identifier: string; password?: string; role?: string }) =>
+    fetchJson<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  register: (data: {
+    name: string;
+    email?: string;
+    phone?: string;
+    role: string;
+    agencyOrVessel?: string;
+    nipOrLicense?: string;
+    password?: string;
+  }) =>
+    fetchJson<AuthResponse>('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+
   // Vessels
   getVessels: () => fetchJson<Vessel[]>('/api/vessels'),
   createVessel: (data: Partial<Vessel>) =>
@@ -68,17 +91,46 @@ export const api = {
   getReservations: () => fetchJson<Reservation[]>('/api/reservations'),
   createReservation: (data: {
     scheduleId: string;
-    userId: string;
+    userId?: string;
     userName: string;
     userPhone: string;
+    userEmail?: string;
     passengersCount: number;
     motorbikesCount?: number;
     carsCount?: number;
+    passengersList?: Array<{ name: string; idNumber: string; type: 'Dewasa' | 'Anak'; seatNumber?: string }>;
+    vehiclePlate?: string;
+    vehicleType?: string;
+    paymentMethod?: string;
   }) =>
     fetchJson<Reservation>('/api/reservations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
+    }),
+  validateTicket: (code: string) =>
+    fetchJson<{ valid: boolean; reservation?: Reservation; message: string }>('/api/reservations/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }),
+  checkInTicket: (code: string, officerName?: string) =>
+    fetchJson<{ success: boolean; reservation: Reservation; message: string }>('/api/reservations/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, officerName }),
+    }),
+  completePayment: (id: string, paymentMethod?: string) =>
+    fetchJson<Reservation>(`/api/reservations/${id}/pay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentMethod }),
+    }),
+  cancelReservation: (id: string, reason?: string) =>
+    fetchJson<Reservation>(`/api/reservations/${id}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
     }),
 
   // Weather

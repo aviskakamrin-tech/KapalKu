@@ -11,6 +11,14 @@ export interface User {
   phone: string;
   role: Role;
   avatar?: string;
+  agencyOrVessel?: string;
+  nipOrLicense?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token?: string;
+  message?: string;
 }
 
 export interface Vessel {
@@ -89,26 +97,55 @@ export interface Schedule {
   bookedCars: number;
 }
 
+export interface PassengerDetail {
+  name: string;
+  idNumber: string;
+  type: 'Dewasa' | 'Anak';
+  seatNumber?: string;
+}
+
 export interface Reservation {
   id: string;
   bookingCode: string;
   userId: string;
   userName: string;
   userPhone: string;
+  userEmail?: string;
   scheduleId: string;
   vesselName: string;
+  vesselType?: VesselType;
   originDockName: string;
   destinationDockName: string;
   travelDate: string;
   departureTime: string;
+  estimatedArrivalTime?: string;
   passengersCount: number;
   motorbikesCount: number;
   carsCount: number;
+  passengersList?: PassengerDetail[];
+  vehiclePlate?: string;
+  vehicleType?: string;
+  basePrice?: number;
+  insuranceFee?: number;
+  portServiceFee?: number;
   totalPrice: number;
-  paymentStatus: 'Lunas' | 'Menunggu' | 'Gagal';
-  reservationStatus: 'Terkonfirmasi' | 'Menunggu' | 'Dibatalkan' | 'Selesai';
+  paymentMethod?: string;
+  paymentStatus: 'Lunas' | 'Menunggu Pembayaran' | 'Gagal' | 'Dibatalkan';
+  reservationStatus: 'Terkonfirmasi' | 'Menunggu Pembayaran' | 'Dibatalkan' | 'Selesai';
+  checkInStatus?: 'Belum Check-In' | 'Sudah Check-In (Boarded)';
+  checkInTime?: string;
+  gateNumber?: string;
   createdAt: string;
   qrCodeUrl?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
+  paymentDetails?: {
+    qrisUrl?: string;
+    vaNumber?: string;
+    bankName?: string;
+    cashPaymentCode?: string;
+    paidAt?: string;
+  };
 }
 
 export type NotificationType = 'ship' | 'delay' | 'cancel' | 'weather' | 'booking' | 'sos';

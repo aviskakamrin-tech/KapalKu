@@ -13,7 +13,7 @@ import {
   INITIAL_SOS,
   INITIAL_AUDIT_LOGS,
 } from './src/data/mockData';
-import { Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from './src/types';
+import { User, Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from './src/types';
 
 // In-Memory Database
 let users = [...INITIAL_USERS];
@@ -73,6 +73,107 @@ async function startServer() {
   // API Routes
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', app: 'KapalKu Maritime Platform' });
+  });
+
+  // Auth & Users
+  app.get('/api/users', (_req, res) => {
+    res.json(users);
+  });
+
+  app.post('/api/auth/login', (req, res) => {
+    const { identifier, password, role } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: 'Email, nomor HP, atau ID akun wajib diisi.' });
+    }
+
+    const cleanId = identifier.trim().toLowerCase();
+    // Search by email, phone, name, or nip
+    let matchedUser = users.find(
+      (u) =>
+        u.email.toLowerCase() === cleanId ||
+        u.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
+        u.name.toLowerCase().includes(cleanId) ||
+        (u.nipOrLicense && u.nipOrLicense.toLowerCase().includes(cleanId))
+    );
+
+    // If not found by direct identifier but role is specified and user requested demo login
+    if (!matchedUser && role) {
+      matchedUser = users.find((u) => u.role === role);
+    }
+
+    if (!matchedUser) {
+      // Create guest/passenger user on the fly if non-existent or return 401
+      if (cleanId.includes('@') || cleanId.length >= 8) {
+        matchedUser = {
+          id: `usr_${Date.now()}`,
+          name: identifier.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          email: cleanId.includes('@') ? cleanId : `${cleanId}@kapalku.id`,
+          phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
+          role: role || 'passenger',
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanId}`,
+        };
+        users.push(matchedUser);
+      } else {
+        return res.status(401).json({ error: 'Akun tidak ditemukan. Periksa kembali email atau nomor HP Anda.' });
+      }
+    }
+
+    addAuditLog(matchedUser.name, matchedUser.role, 'USER_LOGIN', `Pengguna berhasil login via ${matchedUser.role}`);
+
+    return res.json({
+      user: matchedUser,
+      token: `token_${matchedUser.id}_${Date.now()}`,
+      message: `Selamat datang kembali, ${matchedUser.name}!`,
+    });
+  });
+
+  app.post('/api/auth/register', (req, res) => {
+    const { name, email, phone, role, agencyOrVessel, nipOrLicense } = req.body;
+
+    if (!name || (!email && !phone)) {
+      return res.status(400).json({ error: 'Nama lengkap dan Email atau Nomor HP wajib diisi.' });
+    }
+
+    const existingUser = users.find(
+      (u) =>
+        (email && u.email.toLowerCase() === email.trim().toLowerCase()) ||
+        (phone && u.phone === phone.trim())
+    );
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email atau Nomor HP sudah terdaftar. Silakan langsung masuk.' });
+    }
+
+    const newUser: User = {
+      id: `usr_${Date.now()}`,
+      name: name.trim(),
+      email: email ? email.trim().toLowerCase() : `${phone.replace(/[^0-9]/g, '')}@kapalku.id`,
+      phone: phone ? phone.trim() : '0812-0000-0000',
+      role: (role as any) || 'passenger',
+      agencyOrVessel: agencyOrVessel ? agencyOrVessel.trim() : undefined,
+      nipOrLicense: nipOrLicense ? nipOrLicense.trim() : undefined,
+      avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+    };
+
+    users.push(newUser);
+    addAuditLog(newUser.name, newUser.role, 'USER_REGISTER', `Pendaftaran akun baru: ${newUser.name} (${newUser.role})`);
+
+    // Add welcome notification
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: newUser.id,
+      title: '🎉 Selamat Datang di KapalKu',
+      message: `Halo ${newUser.name}, akun Anda telah aktif. Nikmati kemudahan info jadwal, live tracking dan tiket kapal.`,
+      type: 'ship',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    return res.status(201).json({
+      user: newUser,
+      token: `token_${newUser.id}_${Date.now()}`,
+      message: 'Pendaftaran berhasil!',
+    });
   });
 
   // Vessels
@@ -193,26 +294,46 @@ async function startServer() {
   });
 
   app.post('/api/reservations', (req, res) => {
-    const { scheduleId, userId, userName, userPhone, passengersCount, motorbikesCount, carsCount } = req.body;
+    const {
+      scheduleId,
+      userId,
+      userName,
+      userPhone,
+      userEmail,
+      passengersCount,
+      motorbikesCount,
+      carsCount,
+      passengersList,
+      vehiclePlate,
+      vehicleType,
+      paymentMethod,
+    } = req.body;
+
     const schIndex = schedules.findIndex((s) => s.id === scheduleId);
     if (schIndex === -1) return res.status(404).json({ error: 'Jadwal tidak ditemukan' });
 
     const sch = schedules[schIndex];
     
     // Check quota
-    if (sch.bookedPassengers + passengersCount > sch.maxPassengers) {
+    if (sch.bookedPassengers + (passengersCount || 1) > sch.maxPassengers) {
       return res.status(400).json({ error: 'Kapal penuh. Silakan pilih jadwal berikutnya.' });
     }
 
-    // Update booked quota
-    schedules[schIndex].bookedPassengers += passengersCount;
-    schedules[schIndex].bookedMotorbikes += (motorbikesCount || 0);
-    schedules[schIndex].bookedCars += (carsCount || 0);
+    const pax = passengersCount || 1;
+    const motors = motorbikesCount || 0;
+    const cars = carsCount || 0;
 
-    const bookingCode = `KK-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`;
-    const totalPrice = (passengersCount * sch.tariffPassenger) + 
-                       ((motorbikesCount || 0) * sch.tariffMotorbike) + 
-                       ((carsCount || 0) * sch.tariffCar);
+    // Update booked quota
+    schedules[schIndex].bookedPassengers += pax;
+    schedules[schIndex].bookedMotorbikes += motors;
+    schedules[schIndex].bookedCars += cars;
+
+    const bookingCode = `KK-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const basePrice = (pax * sch.tariffPassenger) + (motors * sch.tariffMotorbike) + (cars * sch.tariffCar);
+    const insuranceFee = pax * 2000; // Asuransi Jasa Raharja
+    const portServiceFee = pax * 3000; // Retribusi Jasa Pelabuhan
+    const totalPrice = basePrice + insuranceFee + portServiceFee;
+    const gateNum = `GATE ${Math.floor(1 + Math.random() * 4)}${String.fromCharCode(65 + Math.floor(Math.random() * 3))}`;
 
     const newRes: Reservation = {
       id: `res_${Date.now()}`,
@@ -220,36 +341,240 @@ async function startServer() {
       userId: userId || 'usr_pass_1',
       userName: userName || 'Ahmad Faisal',
       userPhone: userPhone || '0812-3456-7890',
+      userEmail: userEmail || 'penumpang@kapalku.id',
       scheduleId: sch.id,
       vesselName: sch.vesselName,
+      vesselType: sch.vesselType,
       originDockName: sch.originDockName,
       destinationDockName: sch.destinationDockName,
       travelDate: sch.date,
       departureTime: `${sch.departureTime} WITA`,
-      passengersCount,
-      motorbikesCount: motorbikesCount || 0,
-      carsCount: carsCount || 0,
+      estimatedArrivalTime: `${sch.estimatedArrivalTime} WITA`,
+      passengersCount: pax,
+      motorbikesCount: motors,
+      carsCount: cars,
+      passengersList: passengersList || [
+        {
+          name: userName || 'Ahmad Faisal',
+          idNumber: '7371092801950001',
+          type: 'Dewasa',
+          seatNumber: `A-${Math.floor(1 + Math.random() * 50)}`,
+        },
+      ],
+      vehiclePlate: vehiclePlate || undefined,
+      vehicleType: vehicleType || undefined,
+      basePrice,
+      insuranceFee,
+      portServiceFee,
       totalPrice,
-      paymentStatus: 'Lunas',
-      reservationStatus: 'Terkonfirmasi',
+      paymentMethod: paymentMethod || 'QRIS Terpadu',
+      paymentStatus: (paymentMethod === 'Bayar di Loket' || paymentMethod === 'Virtual Account' ? 'Menunggu Pembayaran' : 'Lunas') as 'Lunas' | 'Menunggu Pembayaran',
+      reservationStatus: (paymentMethod === 'Bayar di Loket' || paymentMethod === 'Virtual Account' ? 'Menunggu Pembayaran' : 'Terkonfirmasi') as 'Terkonfirmasi' | 'Menunggu Pembayaran',
+      checkInStatus: 'Belum Check-In',
+      gateNumber: gateNum,
       createdAt: new Date().toISOString().slice(0,10) + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${bookingCode}`,
+      qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${bookingCode}`,
+      paymentDetails: {
+        paidAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        bankName: paymentMethod?.includes('BCA') ? 'Bank BCA' : paymentMethod?.includes('Mandiri') ? 'Bank Mandiri' : paymentMethod?.includes('BRI') ? 'Bank BRI' : 'Bank BNI',
+        vaNumber: `8802${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        cashPaymentCode: `PAY-LOKET-${bookingCode.slice(-4)}`,
+      },
     };
 
     reservations.unshift(newRes);
+    addAuditLog(newRes.userName, 'passenger', 'CREATE_BOOKING', `Reservasi tiket berhasil: ${bookingCode} (${sch.vesselName})`);
 
     // Push notification for passenger
     notifications.unshift({
       id: `notif_${Date.now()}`,
       userId: newRes.userId,
-      title: '🎟️ Reservasi Berhasil',
-      message: `Tiket Kode Booking ${bookingCode} (${sch.vesselName}) telah berhasil dikonfirmasi.`,
+      title: '🎟️ Pemesanan Tiket Diterbitkan',
+      message: `Kode Booking ${bookingCode} (${sch.vesselName}): Rute ${sch.originDockName} → ${sch.destinationDockName}. Status: ${newRes.paymentStatus}.`,
       type: 'booking',
       read: false,
       createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
     });
 
     res.status(201).json(newRes);
+  });
+
+  // Complete Payment endpoint
+  app.post('/api/reservations/:id/pay', (req, res) => {
+    const { id } = req.params;
+    const { paymentMethod } = req.body;
+
+    const index = reservations.findIndex((r) => r.id === id || r.bookingCode === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Data reservasi tidak ditemukan.' });
+    }
+
+    const current = reservations[index];
+    if (current.reservationStatus === 'Dibatalkan') {
+      return res.status(400).json({ error: 'Reservasi ini telah dibatalkan dan tidak dapat dibayar.' });
+    }
+
+    const updated: Reservation = {
+      ...current,
+      paymentStatus: 'Lunas',
+      reservationStatus: 'Terkonfirmasi',
+      paymentMethod: paymentMethod || current.paymentMethod || 'QRIS Terpadu',
+      paymentDetails: {
+        ...current.paymentDetails,
+        paidAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      },
+    };
+
+    reservations[index] = updated;
+
+    addAuditLog(
+      updated.userName,
+      'passenger',
+      'PAYMENT_COMPLETED',
+      `Pembayaran lunas untuk tiket ${updated.bookingCode} via ${updated.paymentMethod}`
+    );
+
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: updated.userId,
+      title: '✅ Pembayaran Tiket Berhasil!',
+      message: `Pembayaran untuk tiket ${updated.bookingCode} (${updated.vesselName}) telah diverifikasi LUNAS. E-Ticket dan QR Boarding Pass siap digunakan.`,
+      type: 'booking',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    res.json(updated);
+  });
+
+  // Cancel Reservation endpoint
+  app.post('/api/reservations/:id/cancel', (req, res) => {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const index = reservations.findIndex((r) => r.id === id || r.bookingCode === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Data reservasi tidak ditemukan.' });
+    }
+
+    const current = reservations[index];
+    if (current.reservationStatus === 'Dibatalkan') {
+      return res.status(400).json({ error: 'Reservasi ini sudah dibatalkan sebelumnya.' });
+    }
+
+    if (current.checkInStatus === 'Sudah Check-In (Boarded)') {
+      return res.status(400).json({ error: 'Tiket yang sudah boarding tidak dapat dibatalkan.' });
+    }
+
+    const cancelTime = new Date().toISOString().slice(0, 10) + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const updated: Reservation = {
+      ...current,
+      reservationStatus: 'Dibatalkan',
+      paymentStatus: 'Dibatalkan',
+      cancellationReason: reason || 'Permintaan pembatalan tiket oleh penumpang',
+      cancelledAt: cancelTime,
+    };
+
+    reservations[index] = updated;
+
+    // Free up schedule capacity
+    const schIndex = schedules.findIndex((s) => s.id === current.scheduleId);
+    if (schIndex !== -1) {
+      schedules[schIndex].bookedPassengers = Math.max(0, schedules[schIndex].bookedPassengers - current.passengersCount);
+      schedules[schIndex].bookedMotorbikes = Math.max(0, schedules[schIndex].bookedMotorbikes - current.motorbikesCount);
+      schedules[schIndex].bookedCars = Math.max(0, schedules[schIndex].bookedCars - current.carsCount);
+    }
+
+    addAuditLog(
+      current.userName,
+      'passenger',
+      'CANCEL_BOOKING',
+      `Pembatalan tiket ${current.bookingCode} (${current.vesselName}). Alasan: ${reason || 'Pembatalan mandiri'}`
+    );
+
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: current.userId,
+      title: '❌ Tiket Dibatalkan',
+      message: `Pemesanan tiket ${current.bookingCode} (${current.vesselName}) telah berhasil dibatalkan. Kuota kursi telah dikembalikan.`,
+      type: 'cancel',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    res.json(updated);
+  });
+
+  // Ticket Validation & Check-in for Admin / Gate Officers
+  app.post('/api/reservations/validate', (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Kode booking wajib diisi' });
+
+    const cleanCode = code.trim().toUpperCase();
+    const reservation = reservations.find((r) => r.bookingCode.toUpperCase() === cleanCode || r.id === cleanCode);
+
+    if (!reservation) {
+      return res.status(404).json({
+        valid: false,
+        message: 'Tiket TIDAK DITEMUKAN. Periksa kembali kode booking atau QR Code.',
+      });
+    }
+
+    if (reservation.reservationStatus === 'Dibatalkan') {
+      return res.json({
+        valid: false,
+        reservation,
+        message: `⛔ TIKET SUDAH DIBATALKAN. Pembatalan: ${reservation.cancelledAt || ''} (Alasan: ${reservation.cancellationReason || 'Pembatalan'}). Boarding ditolak.`,
+      });
+    }
+
+    if (reservation.paymentStatus !== 'Lunas') {
+      return res.json({
+        valid: false,
+        reservation,
+        message: `⚠️ PEMBAYARAN BELUM LUNAS. Penumpang harus menyelesaikan pembayaran tiket sebelum boarding di gate.`,
+      });
+    }
+
+    return res.json({
+      valid: true,
+      reservation,
+      message: reservation.checkInStatus === 'Sudah Check-In (Boarded)'
+        ? '⚠️ Tiket ini SUDAH DIGUNAKAN untuk boarding sebelumnya.'
+        : '✅ Tiket VALID & LUNAS. Siap untuk proses boarding penumpang.',
+    });
+  });
+
+  app.post('/api/reservations/checkin', (req, res) => {
+    const { code, officerName } = req.body;
+    if (!code) return res.status(400).json({ error: 'Kode booking wajib diisi' });
+
+    const cleanCode = code.trim().toUpperCase();
+    const index = reservations.findIndex((r) => r.bookingCode.toUpperCase() === cleanCode || r.id === cleanCode);
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Tiket tidak ditemukan.' });
+    }
+
+    const checkInTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WITA';
+    reservations[index] = {
+      ...reservations[index],
+      checkInStatus: 'Sudah Check-In (Boarded)',
+      checkInTime,
+    };
+
+    addAuditLog(
+      officerName || 'Petugas Gate Dermaga',
+      'admin',
+      'CHECKIN_TICKET',
+      `Check-in & boarding tiket ${reservations[index].bookingCode} - ${reservations[index].userName}`
+    );
+
+    return res.json({
+      success: true,
+      reservation: reservations[index],
+      message: `Boarding Berhasil! Selamat datang di atas kapal ${reservations[index].vesselName}.`,
+    });
   });
 
   // Weather Reports

@@ -1,32 +1,37 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, ShieldAlert, Clock, ArrowRight, Anchor, Users } from 'lucide-react';
-import { Dock, Schedule, WeatherReport } from '../../types';
+import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, ShieldAlert, Clock, ArrowRight, Anchor, Users, Navigation } from 'lucide-react';
+import { Dock, Schedule, WeatherReport, Reservation } from '../../types';
 
 interface PassengerHomeProps {
   docks: Dock[];
   schedules: Schedule[];
   weatherReports: WeatherReport[];
+  reservations?: Reservation[];
   onNavigateTab: (tab: string) => void;
   onSearchSchedules: (originId: string, destinationId: string, date: string) => void;
   onSelectBooking: (schedule: Schedule) => void;
+  onTrackVessel?: (vesselName: string) => void;
 }
 
 export const PassengerHome: React.FC<PassengerHomeProps> = ({
   docks,
   schedules,
   weatherReports,
+  reservations = [],
   onNavigateTab,
   onSearchSchedules,
   onSelectBooking,
+  onTrackVessel,
 }) => {
   const [originDockId, setOriginDockId] = useState<string>('');
   const [destinationDockId, setDestinationDockId] = useState<string>('');
   const [travelDate, setTravelDate] = useState<string>('2026-08-11');
 
+  const activeBookings = reservations.filter((r) => r.reservationStatus !== 'Dibatalkan');
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSearchSchedules(originDockId, destinationDockId, travelDate);
-    onNavigateTab('jadwal');
   };
 
   const upcomingSchedules = schedules.slice(0, 4);
@@ -34,6 +39,46 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Active Booked Vessel Live Tracking Alert if user has active ticket */}
+      {activeBookings.length > 0 && (
+        <div className="bg-gradient-to-r from-[#0F2C59] via-[#1E40AF] to-[#0284C7] text-white p-4 sm:p-5 rounded-3xl shadow-xl border border-sky-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in-50 duration-300">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 text-sky-300 flex items-center justify-center shrink-0 shadow-inner">
+              <Navigation className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300">
+                  Radar AIS Aktif • Tiket Dipesan
+                </span>
+              </div>
+              <h3 className="font-black text-sm sm:text-base text-white mt-0.5">
+                {activeBookings[0].vesselName} ({activeBookings[0].originDockName} ➔ {activeBookings[0].destinationDockName})
+              </h3>
+              <p className="text-xs text-sky-200">
+                Jadwal: {activeBookings[0].travelDate} • Pukul {activeBookings[0].departureTime}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onTrackVessel) {
+                onTrackVessel(activeBookings[0].vesselName);
+              } else {
+                onNavigateTab('peta');
+              }
+            }}
+            className="py-2.5 px-5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center space-x-1.5 cursor-pointer self-start sm:self-auto transition-all hover:scale-105"
+          >
+            <Compass className="w-4 h-4 text-slate-900" />
+            <span>Lacak di Live Map</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Hero Search Box */}
       <div className="relative bg-gradient-to-br from-[#0F2C59] via-[#1E40AF] to-[#0284C7] rounded-3xl p-6 sm:p-8 text-white shadow-xl overflow-hidden">
         {/* Decorative Wave Background Pattern */}

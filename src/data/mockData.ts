@@ -10,12 +10,32 @@ export const INITIAL_USERS: User[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   },
   {
+    id: 'usr_pass_2',
+    name: 'Siti Nurhaliza',
+    email: 'siti.nur@gmail.com',
+    phone: '0852-9876-1122',
+    role: 'passenger',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+  },
+  {
     id: 'usr_op_1',
     name: 'Captain Bambang Rusli',
     email: 'bambang.nakhoda@kapalku.id',
     phone: '0821-9876-5432',
     role: 'operator',
+    agencyOrVessel: 'KMP Jawatutu (ASDP Balikpapan)',
+    nipOrLicense: 'ANT-III / 620199482',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'usr_op_2',
+    name: 'Captain Rahman Hakim',
+    email: 'rahman.express@kapalku.id',
+    phone: '0813-8877-6655',
+    role: 'operator',
+    agencyOrVessel: 'KM Express Bahari 2C',
+    nipOrLicense: 'ANT-IV / 771203991',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
   },
   {
     id: 'usr_admin_1',
@@ -23,6 +43,8 @@ export const INITIAL_USERS: User[] = [
     email: 'syahbandar.admin@kapalku.go.id',
     phone: '0811-2233-4455',
     role: 'admin',
+    agencyOrVessel: 'KSOP Kelas I Balikpapan (Kemenhub)',
+    nipOrLicense: 'NIP. 19780412 200212 1 003',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
   },
 ];
@@ -1451,29 +1473,7 @@ export const INITIAL_SCHEDULES: Schedule[] = [
   },
 ];
 
-export const INITIAL_RESERVATIONS: Reservation[] = [
-  {
-    id: 'res_1',
-    bookingCode: 'KK-20260811-001',
-    userId: 'usr_pass_1',
-    userName: 'Ahmad Faisal',
-    userPhone: '0812-3456-7890',
-    scheduleId: 'sch_1',
-    vesselName: 'KMP Jawatutu (ASDP Balikpapan)',
-    originDockName: 'Dermaga Semayang (Balikpapan)',
-    destinationDockName: 'Dermaga Penajam (Penajam Paser Utara)',
-    travelDate: '2026-08-11',
-    departureTime: '08:00 WITA',
-    passengersCount: 2,
-    motorbikesCount: 1,
-    carsCount: 0,
-    totalPrice: 110000,
-    paymentStatus: 'Lunas',
-    reservationStatus: 'Terkonfirmasi',
-    createdAt: '2026-08-11 07:15',
-    qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=KK-20260811-001',
-  },
-];
+export const INITIAL_RESERVATIONS: Reservation[] = [];
 
 export const INITIAL_WEATHER: WeatherReport[] = [
   {
