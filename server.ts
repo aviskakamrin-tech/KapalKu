@@ -83,42 +83,54 @@ async function startServer() {
   app.post('/api/auth/login', (req, res) => {
     const { identifier, password, role } = req.body;
     if (!identifier) {
-      return res.status(400).json({ error: 'Email, nomor HP, atau ID akun wajib diisi.' });
+      return res.status(400).json({ error: 'Nama, email, atau nomor HP wajib diisi.' });
     }
 
-    const cleanId = identifier.trim().toLowerCase();
-    // Search by email, phone, name, or nip
+    const cleanId = String(identifier).trim();
+    const cleanIdLower = cleanId.toLowerCase();
+
+    // 1. Direct search by email, phone, or full name
     let matchedUser = users.find(
       (u) =>
-        u.email.toLowerCase() === cleanId ||
+        u.email.toLowerCase() === cleanIdLower ||
         u.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
-        u.name.toLowerCase().includes(cleanId) ||
-        (u.nipOrLicense && u.nipOrLicense.toLowerCase().includes(cleanId))
+        u.name.toLowerCase() === cleanIdLower ||
+        (u.nipOrLicense && u.nipOrLicense.toLowerCase() === cleanIdLower)
     );
 
-    // If not found by direct identifier but role is specified and user requested demo login
-    if (!matchedUser && role) {
-      matchedUser = users.find((u) => u.role === role);
-    }
-
+    // 2. Partial search in registered users
     if (!matchedUser) {
-      // Create guest/passenger user on the fly if non-existent or return 401
-      if (cleanId.includes('@') || cleanId.length >= 8) {
-        matchedUser = {
-          id: `usr_${Date.now()}`,
-          name: identifier.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-          email: cleanId.includes('@') ? cleanId : `${cleanId}@kapalku.id`,
-          phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
-          role: role || 'passenger',
-          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanId}`,
-        };
-        users.push(matchedUser);
-      } else {
-        return res.status(401).json({ error: 'Akun tidak ditemukan. Periksa kembali email atau nomor HP Anda.' });
-      }
+      matchedUser = users.find(
+        (u) =>
+          u.name.toLowerCase().includes(cleanIdLower) ||
+          (u.email && u.email.toLowerCase().includes(cleanIdLower))
+      );
     }
 
-    addAuditLog(matchedUser.name, matchedUser.role, 'USER_LOGIN', `Pengguna berhasil login via ${matchedUser.role}`);
+    // 3. If still not found, create new account with the EXACT name/identifier entered
+    if (!matchedUser) {
+      let derivedName = cleanId;
+      if (cleanId.includes('@')) {
+        const prefix = cleanId.split('@')[0];
+        derivedName = prefix
+          .replace(/[._-]/g, ' ')
+          .replace(/\b\w/g, (c: string) => c.toUpperCase());
+      } else if (cleanId.match(/^[0-9+]/)) {
+        derivedName = `Pengguna ${cleanId.slice(-4)}`;
+      }
+
+      matchedUser = {
+        id: `usr_${Date.now()}`,
+        name: derivedName,
+        email: cleanId.includes('@') ? cleanIdLower : `${cleanIdLower.replace(/[^a-z0-9]/g, '') || 'user'}@kapalku.id`,
+        phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
+        role: role || 'passenger',
+        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(derivedName)}`,
+      };
+      users.push(matchedUser);
+    }
+
+    addAuditLog(matchedUser.name, matchedUser.role, 'USER_LOGIN', `Pengguna berhasil login: ${matchedUser.name} (${matchedUser.role})`);
 
     return res.json({
       user: matchedUser,

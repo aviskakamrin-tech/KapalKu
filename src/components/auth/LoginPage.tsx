@@ -218,45 +218,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </div>
           </div>
 
-          {/* Quick Demo 1-Click Login Box */}
-          <div className="relative z-10 my-6 bg-sky-950/70 border border-sky-700/50 rounded-2xl p-4 space-y-3 backdrop-blur-sm shadow-inner">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold tracking-wide uppercase text-sky-300 flex items-center space-x-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Akun Uji Coba Cepat</span>
-              </span>
-              <span className="text-[10px] text-sky-400">1-Klik Masuk</span>
-            </div>
+          {/* Maritime Platform Features Showcase */}
+          <div className="relative z-10 my-6 bg-sky-950/70 border border-sky-700/50 rounded-2xl p-4 space-y-3.5 backdrop-blur-sm shadow-inner">
+            <span className="text-[11px] font-bold tracking-wide uppercase text-sky-300 flex items-center space-x-1.5">
+              <ShieldCheck className="w-4 h-4 text-sky-400" />
+              <span>Layanan Terpadu Maritim</span>
+            </span>
 
-            <div className="space-y-2">
-              {INITIAL_USERS.slice(0, 3).map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => handleQuickLogin(user)}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-between p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-left transition-all group disabled:opacity-50"
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="w-7 h-7 rounded-full object-cover border border-sky-300/40"
-                    />
-                    <div>
-                      <div className="text-xs font-semibold text-white group-hover:text-sky-200">
-                        {user.name}
-                      </div>
-                      <div className="text-[10px] text-sky-300">
-                        {user.role === 'passenger' && '👥 Penumpang'}
-                        {user.role === 'operator' && '👨‍✈️ Nakhoda Kapal'}
-                        {user.role === 'admin' && '🛡️ Syahbandar'}
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-sky-300 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-                </button>
-              ))}
+            <div className="space-y-2.5 text-xs text-sky-100">
+              <div className="flex items-start space-x-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
+                <Ship className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-white text-[11px]">Radar AIS & Pelacakan Kapal</div>
+                  <div className="text-[10px] text-sky-200/80">Posisi real-time kapal pesanan Anda di alur laut Nusantara.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
+                <FileText className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-white text-[11px]">E-Ticket Resmi & QR Gate</div>
+                  <div className="text-[10px] text-sky-200/80">Validasi instan manifest keberangkatan dan boarding pass.</div>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
+                <Compass className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-white text-[11px]">Telemetri Cuaca BMKG & SOS</div>
+                  <div className="text-[10px] text-sky-200/80">Info gelombang maritim dan akses darurat Syahbandar 24 jam.</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -383,18 +375,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    {selectedRole === 'passenger' && 'Email atau Nomor WhatsApp'}
-                    {selectedRole === 'operator' && 'Email Nakhoda / Nomor Buku Pelaut'}
-                    {selectedRole === 'admin' && 'Email Dinas / NIP Syahbandar'}
+                    {selectedRole === 'passenger' && 'Nama Lengkap, Email, atau No. WhatsApp'}
+                    {selectedRole === 'operator' && 'Nama Nakhoda, Email, atau No. Buku Pelaut'}
+                    {selectedRole === 'admin' && 'Nama Syahbandar, Email Dinas, atau NIP'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       {selectedRole === 'passenger' ? (
-                        <Mail className="w-4 h-4" />
+                        <UserIcon className="w-4 h-4 text-sky-600" />
                       ) : selectedRole === 'operator' ? (
-                        <Ship className="w-4 h-4" />
+                        <Ship className="w-4 h-4 text-emerald-600" />
                       ) : (
-                        <KeyRound className="w-4 h-4" />
+                        <KeyRound className="w-4 h-4 text-amber-600" />
                       )}
                     </div>
                     <input
@@ -403,12 +395,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       onChange={(e) => setLoginIdentifier(e.target.value)}
                       placeholder={
                         selectedRole === 'passenger'
-                          ? 'faisal@example.com atau 0812...'
+                          ? 'Masukkan Nama Lengkap / Email / No. HP Anda'
                           : selectedRole === 'operator'
-                          ? 'bambang.nakhoda@kapalku.id atau ANT-III...'
-                          : 'syahbandar.admin@kapalku.go.id atau NIP...'
+                          ? 'Masukkan Nama Nakhoda / Email / ID Kapal'
+                          : 'Masukkan Nama Syahbandar / NIP / Email Dinas'
                       }
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
                       required
                     />
                   </div>
@@ -435,8 +427,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       type={showPassword ? 'text' : 'password'}
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="Masukkan kata sandi akun"
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
+                      placeholder="Masukkan kata sandi akun Anda"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
                     />
                     <button
                       type="button"
@@ -446,9 +438,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    * Untuk akun uji coba, Anda dapat mengosongkan kata sandi atau klik tombol akun cepat.
-                  </p>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">

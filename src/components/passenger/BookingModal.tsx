@@ -91,13 +91,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [carsCount, setCarsCount] = useState<number>(0);
 
   // Lead Buyer Information
-  const [userName, setUserName] = useState<string>(currentUser?.name || 'Ahmad Faisal');
-  const [userPhone, setUserPhone] = useState<string>(currentUser?.phone || '0812-3456-7890');
-  const [userEmail, setUserEmail] = useState<string>(currentUser?.email || 'faisal.maritim@kapalku.id');
+  const [userName, setUserName] = useState<string>(currentUser?.name || '');
+  const [userPhone, setUserPhone] = useState<string>(currentUser?.phone || '');
+  const [userEmail, setUserEmail] = useState<string>(currentUser?.email || '');
 
   // Passenger Manifest List
   const [passengersList, setPassengersList] = useState<Array<{ name: string; idNumber: string; type: 'Dewasa' | 'Anak' }>>([
-    { name: currentUser?.name || 'Ahmad Faisal', idNumber: '7371092801950001', type: 'Dewasa' },
+    { name: currentUser?.name || '', idNumber: '7371092801950001', type: 'Dewasa' },
   ]);
 
   // Vehicle Details
@@ -121,7 +121,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.name) setUserName(currentUser.name);
+      if (currentUser.name) {
+        setUserName(currentUser.name);
+        setPassengersList((prev) => {
+          if (prev.length > 0) {
+            const updated = [...prev];
+            updated[0] = { ...updated[0], name: currentUser.name };
+            return updated;
+          }
+          return [{ name: currentUser.name, idNumber: '7371092801950001', type: 'Dewasa' }];
+        });
+      }
       if (currentUser.phone) setUserPhone(currentUser.phone);
       if (currentUser.email) setUserEmail(currentUser.email);
     }
@@ -678,8 +688,58 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               </div>
 
+              {/* Data Pemesan Utama (Sesuai Akun Login) */}
+              <div className="bg-sky-50/80 border border-sky-200 p-3.5 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-950 flex items-center space-x-1.5">
+                    <UserCheck className="w-4 h-4 text-sky-600" />
+                    <span>Data Pemesan Utama (Sesuai Akun Login)</span>
+                  </span>
+                  {currentUser && (
+                    <span className="text-[10px] bg-sky-200/80 text-sky-900 font-bold px-2 py-0.5 rounded-full">
+                      Akun: {currentUser.name}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Nama Pemesan</label>
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => {
+                        setUserName(e.target.value);
+                        handleUpdatePassenger(0, 'name', e.target.value);
+                      }}
+                      placeholder="Nama Lengkap"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Nomor HP / WhatsApp</label>
+                    <input
+                      type="text"
+                      value={userPhone}
+                      onChange={(e) => setUserPhone(e.target.value)}
+                      placeholder="0812-xxxx-xxxx"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Email Pengiriman Tiket</label>
+                    <input
+                      type="email"
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      placeholder="email@domain.com"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Manifest Passenger Data */}
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2 pt-1">
                 <span className="text-xs font-bold text-slate-800 block">Daftar Manifest Penumpang (Sesuai KTP):</span>
                 {passengersList.map((pax, idx) => (
                   <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

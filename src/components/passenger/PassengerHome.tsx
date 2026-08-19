@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, ShieldAlert, Clock, ArrowRight, Anchor, Users, Navigation } from 'lucide-react';
-import { Dock, Schedule, WeatherReport, Reservation } from '../../types';
+import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, ShieldAlert, Clock, ArrowRight, Anchor, Users, Navigation, UserCheck } from 'lucide-react';
+import { Dock, Schedule, WeatherReport, Reservation, User } from '../../types';
 
 interface PassengerHomeProps {
   docks: Dock[];
   schedules: Schedule[];
   weatherReports: WeatherReport[];
   reservations?: Reservation[];
+  currentUser?: User | null;
   onNavigateTab: (tab: string) => void;
   onSearchSchedules: (originId: string, destinationId: string, date: string) => void;
   onSelectBooking: (schedule: Schedule) => void;
@@ -18,6 +19,7 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
   schedules,
   weatherReports,
   reservations = [],
+  currentUser,
   onNavigateTab,
   onSearchSchedules,
   onSelectBooking,
@@ -79,17 +81,34 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
           </button>
         </div>
       )}
+
       {/* Hero Search Box */}
       <div className="relative bg-gradient-to-br from-[#0F2C59] via-[#1E40AF] to-[#0284C7] rounded-3xl p-6 sm:p-8 text-white shadow-xl overflow-hidden">
         {/* Decorative Wave Background Pattern */}
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-4">
+        {/* Top Header Row with Slogan & User Name on the Right */}
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/15 pb-4 mb-4">
           <div className="inline-flex items-center space-x-2 bg-sky-400/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-sky-200 border border-sky-300/30">
             <Anchor className="w-3.5 h-3.5 text-sky-300" />
             <span>Platform Transportasi Laut & Sungai Lokal</span>
           </div>
 
+          {/* User Name in Top Right of Beranda */}
+          {currentUser && (
+            <div className="flex items-center space-x-2.5 self-start sm:self-auto bg-white/15 backdrop-blur-md pl-3 pr-3.5 py-1.5 rounded-2xl border border-white/25 shadow-sm">
+              <span className="text-xs text-sky-200">Halo,</span>
+              <span className="text-xs font-extrabold text-white tracking-wide">{currentUser.name}</span>
+              <img
+                src={currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.name}`}
+                alt={currentUser.name}
+                className="w-6 h-6 rounded-full object-cover border-2 border-amber-300 shadow-sm ml-1"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="relative z-10 max-w-3xl space-y-4">
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
             Informasi Laut, Lebih Mudah dan Aman.
           </h1>

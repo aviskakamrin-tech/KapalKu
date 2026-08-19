@@ -17,17 +17,19 @@ import { OperatorDashboard } from './components/operator/OperatorDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 
-import { Home, Map, Calendar, Ticket, CloudSun, Compass, User as UserIcon } from 'lucide-react';
+import { Home, Map, Calendar, Ticket, CloudSun, Compass, User as UserIcon, ShieldCheck } from 'lucide-react';
 
 export default function App() {
+  // Session storage ensures user is automatically logged out when closing or exiting the app
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('kapalku_user');
-      if (saved) return JSON.parse(saved);
+      const savedSession = sessionStorage.getItem('kapalku_user');
+      if (savedSession) return JSON.parse(savedSession);
     } catch (e) {}
     return null;
   });
 
+  const [autoLogoutNotice, setAutoLogoutNotice] = useState<string | null>(null);
   const [activeRole, setActiveRole] = useState<Role>(currentUser?.role || 'passenger');
   const [activeTab, setActiveTab] = useState<string>(currentUser ? 'beranda' : 'login');
 
@@ -56,6 +58,61 @@ export default function App() {
     searchTimestamp?: number;
   }>({});
 
+  // Auto Log-Out on Exit & Inactivity (Keamanan Privasi)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // 15 menit batas waktu tidak aktif
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+    let timerId: any = null;
+
+    const performAutoLogout = (reason: string) => {
+      setCurrentUser(null);
+      try {
+        sessionStorage.removeItem('kapalku_user');
+        localStorage.removeItem('kapalku_user');
+      } catch (e) {}
+      setActiveRole('passenger');
+      setActiveTab('login');
+      setAutoLogoutNotice(reason);
+    };
+
+    const resetTimer = () => {
+      if (timerId) clearTimeout(timerId);
+      timerId = setTimeout(() => {
+        performAutoLogout('Sesi Anda telah diamankan dan ditutup otomatis karena tidak aktif selama 15 menit demi privasi Anda.');
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    resetTimer();
+
+    // Event listeners to detect activity
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach((evt) => {
+      window.addEventListener(evt, resetTimer, { passive: true });
+    });
+
+    // Auto logout when page or app is closed / unloaded
+    const handleAppExit = () => {
+      try {
+        sessionStorage.removeItem('kapalku_user');
+        localStorage.removeItem('kapalku_user');
+      } catch (e) {}
+    };
+
+    window.addEventListener('pagehide', handleAppExit);
+    window.addEventListener('beforeunload', handleAppExit);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+      activityEvents.forEach((evt) => {
+        window.removeEventListener(evt, resetTimer);
+      });
+      window.removeEventListener('pagehide', handleAppExit);
+      window.removeEventListener('beforeunload', handleAppExit);
+    };
+  }, [currentUser]);
+
   const handleTrackVessel = (vesselName: string) => {
     setTrackedVesselName(vesselName);
     setActiveTab('peta');
@@ -74,8 +131,10 @@ export default function App() {
   // Handlers for Auth
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
+    setAutoLogoutNotice(null);
     try {
-      localStorage.setItem('kapalku_user', JSON.stringify(user));
+      sessionStorage.setItem('kapalku_user', JSON.stringify(user));
+      localStorage.removeItem('kapalku_user');
     } catch (e) {}
     setActiveRole(user.role);
     setIsAuthModalOpen(false);
@@ -90,7 +149,9 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setAutoLogoutNotice(null);
     try {
+      sessionStorage.removeItem('kapalku_user');
       localStorage.removeItem('kapalku_user');
     } catch (e) {}
     setActiveRole('passenger');
@@ -213,7 +274,21 @@ export default function App() {
     <div className="min-h-screen bg-slate-100/80 text-slate-900 font-sans flex flex-col">
       {/* If not logged in or on login tab, show ONLY the clean login/register page without any navigation menus */}
       {!currentUser || activeTab === 'login' || activeTab === 'masuk' ? (
-        <div className="min-h-screen w-full flex items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-[#071E3D] via-[#0F2C59] to-[#1E3E62]">
+        <div className="min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-[#071E3D] via-[#0F2C59] to-[#1E3E62]">
+          {autoLogoutNotice && (
+            <div className="w-full max-w-md mx-auto mb-3 p-3.5 bg-sky-950/90 border border-emerald-500/50 text-emerald-100 rounded-2xl text-xs flex items-center justify-between shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span className="leading-snug">{autoLogoutNotice}</span>
+              </div>
+              <button
+                onClick={() => setAutoLogoutNotice(null)}
+                className="text-emerald-300 hover:text-white font-bold ml-2 text-xs p-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <LoginPage
             currentUser={currentUser}
             onLoginSuccess={handleLoginSuccess}
@@ -244,6 +319,7 @@ export default function App() {
                     schedules={schedules}
                     weatherReports={weatherReports}
                     reservations={reservations}
+                    currentUser={currentUser}
                     onNavigateTab={(tab) => setActiveTab(tab)}
                     onSearchSchedules={handleSearchSchedules}
                     onSelectBooking={(sch) => setSelectedBookingSchedule(sch)}

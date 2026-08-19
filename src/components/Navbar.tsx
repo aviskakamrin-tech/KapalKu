@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Anchor, ShieldAlert, Bell, Ship, UserCheck, Compass, LogIn, LogOut, User as UserIcon, ChevronDown, Check } from 'lucide-react';
+import { Anchor, ShieldAlert, Bell, Ship, UserCheck, Compass, LogIn, LogOut, User as UserIcon, ChevronDown, Check, ShieldCheck } from 'lucide-react';
 import { Role, User } from '../types';
 
 interface NavbarProps {
@@ -141,8 +141,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-6 h-6 rounded-full object-cover border border-sky-400"
                   />
                   <div className="text-left hidden md:block">
-                    <div className="text-[11px] font-bold text-white max-w-[100px] truncate leading-tight">
-                      {currentUser.name.split(' ')[0]}
+                    <div className="text-[11px] font-bold text-white max-w-[130px] truncate leading-tight" title={currentUser.name}>
+                      {currentUser.name}
                     </div>
                     <div className="text-[9px] text-sky-300 capitalize leading-tight">
                       {currentUser.role === 'passenger' ? 'Penumpang' : currentUser.role === 'operator' ? 'Nakhoda' : 'Syahbandar'}
@@ -167,6 +167,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                           ⚓ {currentUser.agencyOrVessel}
                         </div>
                       )}
+                    </div>
+
+                    <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-1.5 text-[10px] text-slate-500 font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Auto Log-out Aktif Saat Keluar / Idle</span>
                     </div>
 
                     <div className="py-1 text-xs">
