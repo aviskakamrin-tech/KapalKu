@@ -94,8 +94,7 @@ async function startServer() {
       (u) =>
         u.email.toLowerCase() === cleanIdLower ||
         u.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
-        u.name.toLowerCase() === cleanIdLower ||
-        (u.nipOrLicense && u.nipOrLicense.toLowerCase() === cleanIdLower)
+        u.name.toLowerCase() === cleanIdLower
     );
 
     // 2. Partial search in registered users
@@ -140,7 +139,7 @@ async function startServer() {
   });
 
   app.post('/api/auth/register', (req, res) => {
-    const { name, email, phone, role, agencyOrVessel, nipOrLicense } = req.body;
+    const { name, email, phone } = req.body;
 
     if (!name || (!email && !phone)) {
       return res.status(400).json({ error: 'Nama lengkap dan Email atau Nomor HP wajib diisi.' });
@@ -161,9 +160,7 @@ async function startServer() {
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : `${phone.replace(/[^0-9]/g, '')}@kapalku.id`,
       phone: phone ? phone.trim() : '0812-0000-0000',
-      role: (role as any) || 'passenger',
-      agencyOrVessel: agencyOrVessel ? agencyOrVessel.trim() : undefined,
-      nipOrLicense: nipOrLicense ? nipOrLicense.trim() : undefined,
+      role: 'passenger',
       avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
     };
 

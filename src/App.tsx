@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Role, User, Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from './types';
+import { User, Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport } from './types';
 import { api } from './lib/api';
-import { INITIAL_USERS, INITIAL_VESSELS, INITIAL_DOCKS, INITIAL_ROUTES, INITIAL_SCHEDULES, INITIAL_RESERVATIONS, INITIAL_WEATHER, INITIAL_NOTIFICATIONS, INITIAL_SOS, INITIAL_AUDIT_LOGS } from './data/mockData';
+import { INITIAL_VESSELS, INITIAL_DOCKS, INITIAL_ROUTES, INITIAL_SCHEDULES, INITIAL_RESERVATIONS, INITIAL_WEATHER, INITIAL_NOTIFICATIONS, INITIAL_SOS } from './data/mockData';
 
 import { Navbar } from './components/Navbar';
 import { PassengerHome } from './components/passenger/PassengerHome';
@@ -13,8 +13,6 @@ import { MyTickets } from './components/passenger/MyTickets';
 import { WeatherPage } from './components/passenger/WeatherPage';
 import { SOSModal } from './components/passenger/SOSModal';
 import { LoginPage } from './components/auth/LoginPage';
-import { OperatorDashboard } from './components/operator/OperatorDashboard';
-import { AdminDashboard } from './components/admin/AdminDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 
 import { Home, Map, Calendar, Ticket, CloudSun, Compass, User as UserIcon, ShieldCheck } from 'lucide-react';
@@ -30,7 +28,6 @@ export default function App() {
   });
 
   const [autoLogoutNotice, setAutoLogoutNotice] = useState<string | null>(null);
-  const [activeRole, setActiveRole] = useState<Role>(currentUser?.role || 'passenger');
   const [activeTab, setActiveTab] = useState<string>(currentUser ? 'beranda' : 'login');
 
   // Master State
@@ -41,8 +38,7 @@ export default function App() {
   const [reservations, setReservations] = useState<Reservation[]>(INITIAL_RESERVATIONS);
   const [weatherReports, setWeatherReports] = useState<WeatherReport[]>(INITIAL_WEATHER);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-  const [sosReports, setSosReports] = useState<SOSReport[]>(INITIAL_SOS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
+  const [, setSosReports] = useState<SOSReport[]>(INITIAL_SOS);
 
   // Modals & Search
   const [selectedBookingSchedule, setSelectedBookingSchedule] = useState<Schedule | null>(null);
@@ -72,7 +68,6 @@ export default function App() {
         sessionStorage.removeItem('kapalku_user');
         localStorage.removeItem('kapalku_user');
       } catch (e) {}
-      setActiveRole('passenger');
       setActiveTab('login');
       setAutoLogoutNotice(reason);
     };
@@ -136,15 +131,8 @@ export default function App() {
       sessionStorage.setItem('kapalku_user', JSON.stringify(user));
       localStorage.removeItem('kapalku_user');
     } catch (e) {}
-    setActiveRole(user.role);
     setIsAuthModalOpen(false);
-    if (user.role === 'admin') {
-      setActiveTab('admin');
-    } else if (user.role === 'operator') {
-      setActiveTab('operator');
-    } else {
-      setActiveTab('beranda');
-    }
+    setActiveTab('beranda');
   };
 
   const handleLogout = () => {
@@ -154,14 +142,13 @@ export default function App() {
       sessionStorage.removeItem('kapalku_user');
       localStorage.removeItem('kapalku_user');
     } catch (e) {}
-    setActiveRole('passenger');
     setActiveTab('login');
   };
 
   // Initial Data Fetch & Interval Refresh
   const loadAllData = async () => {
     try {
-      const [vData, dData, rData, sData, resData, wData, nData, sosData, aData] = await Promise.all([
+      const [vData, dData, rData, sData, resData, wData, nData, sosData] = await Promise.all([
         api.getVessels().catch(() => INITIAL_VESSELS),
         api.getDocks().catch(() => INITIAL_DOCKS),
         api.getRoutes().catch(() => INITIAL_ROUTES),
@@ -170,7 +157,6 @@ export default function App() {
         api.getWeather().catch(() => INITIAL_WEATHER),
         api.getNotifications().catch(() => INITIAL_NOTIFICATIONS),
         api.getSOS().catch(() => INITIAL_SOS),
-        api.getAudit().catch(() => INITIAL_AUDIT_LOGS),
       ]);
 
       if (vData) setVessels(vData);
@@ -181,7 +167,6 @@ export default function App() {
       if (wData) setWeatherReports(wData);
       if (nData) setNotifications(nData);
       if (sosData) setSosReports(sosData);
-      if (aData) setAuditLogs(aData);
     } catch (err) {
       console.warn('Backend sync warning:', err);
     }
@@ -194,45 +179,6 @@ export default function App() {
     }, 4000);
     return () => clearInterval(timer);
   }, []);
-
-  // Handlers for Operator & Admin actions
-  const handleUpdateVesselStatus = async (vesselId: string, status: any) => {
-    try {
-      const updated = await api.updateVessel(vesselId, { status });
-      setVessels((prev) => prev.map((v) => (v.id === vesselId ? updated : v)));
-    } catch (err) {
-      setVessels((prev) => prev.map((v) => (v.id === vesselId ? { ...v, status } : v)));
-    }
-  };
-
-  const handleSendGPSUpdate = async (
-    vesselId: string,
-    lat: number,
-    lng: number,
-    speedKts: number,
-    headingDeg: number,
-    status?: string
-  ) => {
-    try {
-      const res = await api.updateGPS({ vesselId, lat, lng, speedKts, headingDeg, status });
-      if (res && res.vessel) {
-        setVessels((prev) => prev.map((v) => (v.id === vesselId ? res.vessel : v)));
-      }
-    } catch (err) {
-      setVessels((prev) =>
-        prev.map((v) => (v.id === vesselId ? { ...v, currentLat: lat, currentLng: lng, speedKts, headingDeg } : v))
-      );
-    }
-  };
-
-  const handleUpdateScheduleStatus = async (scheduleId: string, status: any, reason?: string) => {
-    try {
-      const updated = await api.updateSchedule(scheduleId, { status, statusReason: reason });
-      setSchedules((prev) => prev.map((s) => (s.id === scheduleId ? updated : s)));
-    } catch (err) {
-      setSchedules((prev) => prev.map((s) => (s.id === scheduleId ? { ...s, status, statusReason: reason } : s)));
-    }
-  };
 
   const handleCreateReservation = async (bookingData: any) => {
     const res = await api.createReservation(bookingData);
@@ -248,31 +194,11 @@ export default function App() {
     return res;
   };
 
-  const handleAddVessel = async (vData: Partial<Vessel>) => {
-    const res = await api.createVessel(vData);
-    setVessels((prev) => [res, ...prev]);
-  };
-
-  const handleUpdateWeather = async (id: string, wData: Partial<WeatherReport>) => {
-    const res = await api.updateWeather(id, wData);
-    setWeatherReports((prev) => prev.map((w) => (w.id === id ? res : w)));
-  };
-
-  const handleResolveSOS = async (id: string, status: any) => {
-    const res = await api.updateSOS(id, { status });
-    setSosReports((prev) => prev.map((s) => (s.id === id ? res : s)));
-  };
-
-  const handleBroadcastNotif = async (title: string, message: string, type: any) => {
-    const res = await api.createNotification({ title, message, type, userId: 'all' });
-    setNotifications((prev) => [res, ...prev]);
-  };
-
   const unreadNotifs = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="min-h-screen bg-slate-100/80 text-slate-900 font-sans flex flex-col">
-      {/* If not logged in or on login tab, show ONLY the clean login/register page without any navigation menus */}
+      {/* If not logged in or on login tab, show ONLY the clean login/register page */}
       {!currentUser || activeTab === 'login' || activeTab === 'masuk' ? (
         <div className="min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-[#071E3D] via-[#0F2C59] to-[#1E3E62]">
           {autoLogoutNotice && (
@@ -283,7 +209,7 @@ export default function App() {
               </div>
               <button
                 onClick={() => setAutoLogoutNotice(null)}
-                className="text-emerald-300 hover:text-white font-bold ml-2 text-xs p-1"
+                className="text-emerald-300 hover:text-white font-bold ml-2 text-xs p-1 cursor-pointer"
               >
                 ✕
               </button>
@@ -296,210 +222,169 @@ export default function App() {
         </div>
       ) : (
         <>
-          {/* Top Navbar (Only visible when user is logged in) */}
+          {/* Top Navbar */}
           <Navbar
-            activeRole={activeRole}
-            onRoleChange={(role) => setActiveRole(role)}
             unreadCount={unreadNotifs}
             onOpenNotifications={() => setIsNotifOpen(true)}
             onOpenSOS={() => setIsSOSOpen(true)}
             currentUser={currentUser}
             onOpenLogin={() => setIsAuthModalOpen(true)}
             onLogout={handleLogout}
+            onNavigateTab={(tab) => setActiveTab(tab)}
           />
 
           {/* Main Container */}
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24">
-            {/* Passenger Mode Views */}
-            {activeRole === 'passenger' && (
-              <>
-                {activeTab === 'beranda' && (
-                  <PassengerHome
-                    docks={docks}
-                    schedules={schedules}
-                    weatherReports={weatherReports}
-                    reservations={reservations}
-                    currentUser={currentUser}
-                    onNavigateTab={(tab) => setActiveTab(tab)}
-                    onSearchSchedules={handleSearchSchedules}
-                    onSelectBooking={(sch) => setSelectedBookingSchedule(sch)}
-                    onTrackVessel={handleTrackVessel}
-                  />
-                )}
-
-                {activeTab === 'peta' && (
-                  <VesselTrackerMap
-                    vessels={vessels}
-                    docks={docks}
-                    routes={routes}
-                    schedules={schedules}
-                    reservations={reservations}
-                    initialVesselName={trackedVesselName}
-                    onOpenBookingWizard={() => setIsBookingWizardOpen(true)}
-                    onNavigateTab={(tab) => setActiveTab(tab)}
-                  />
-                )}
-
-                {activeTab === 'jadwal' && (
-                  <ScheduleList
-                    schedules={schedules}
-                    docks={docks}
-                    searchParams={scheduleSearchParams}
-                    onClearSearchParams={() => setScheduleSearchParams({})}
-                    onSelectBooking={(sch) => setSelectedBookingSchedule(sch)}
-                  />
-                )}
-
-                {activeTab === 'rute' && (
-                  <RouteCatalog
-                    routes={routes}
-                    docks={docks}
-                    weatherReports={weatherReports}
-                    onNavigateTab={(tab) => setActiveTab(tab)}
-                    onSearchSchedules={(origin, dest) => {
-                      handleSearchSchedules(origin, dest, '');
-                    }}
-                  />
-                )}
-
-                {activeTab === 'tiket' && (
-                  <MyTickets
-                    reservations={reservations}
-                    onOpenBookingWizard={() => setIsBookingWizardOpen(true)}
-                    onRefreshReservations={loadAllData}
-                    onTrackVessel={handleTrackVessel}
-                  />
-                )}
-
-                {activeTab === 'cuaca' && <WeatherPage reports={weatherReports} />}
-
-                {activeTab === 'sos' && (
-                  <div className="bg-white p-6 rounded-3xl border border-red-200 text-center space-y-4">
-                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
-                      🚨
-                    </div>
-                    <h2 className="text-xl font-bold">Panggilan Darurat SOS Pelayaran</h2>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto">
-                      Tekan tombol di bawah ini jika Anda berada dalam situasi darurat di atas kapal atau di perairan.
-                    </p>
-                    <button
-                      onClick={() => setIsSOSOpen(true)}
-                      className="bg-red-600 hover:bg-red-700 text-white font-extrabold px-6 py-3 rounded-2xl text-sm shadow-lg shadow-red-600/30 cursor-pointer"
-                    >
-                      Buka Menu Darurat SOS
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Operator Mode View */}
-            {activeRole === 'operator' && (
-              <OperatorDashboard
-                vessels={vessels}
+            {activeTab === 'beranda' && (
+              <PassengerHome
+                docks={docks}
                 schedules={schedules}
+                weatherReports={weatherReports}
                 reservations={reservations}
-                onUpdateVesselStatus={handleUpdateVesselStatus}
-                onSendGPSUpdate={handleSendGPSUpdate}
-                onUpdateScheduleStatus={handleUpdateScheduleStatus}
+                currentUser={currentUser}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                onSearchSchedules={handleSearchSchedules}
+                onSelectBooking={(sch) => setSelectedBookingSchedule(sch)}
+                onTrackVessel={handleTrackVessel}
               />
             )}
 
-            {/* Admin Syahbandar Mode View */}
-            {activeRole === 'admin' && (
-              <AdminDashboard
+            {activeTab === 'peta' && (
+              <VesselTrackerMap
                 vessels={vessels}
                 docks={docks}
                 routes={routes}
                 schedules={schedules}
                 reservations={reservations}
-                weatherReports={weatherReports}
-                sosReports={sosReports}
-                auditLogs={auditLogs}
-                onAddVessel={handleAddVessel}
-                onAddDock={async () => {}}
-                onAddRoute={async () => {}}
-                onAddSchedule={async () => {}}
-                onUpdateWeather={handleUpdateWeather}
-                onResolveSOS={handleResolveSOS}
-                onBroadcastNotif={handleBroadcastNotif}
+                initialVesselName={trackedVesselName}
+                onOpenBookingWizard={() => setIsBookingWizardOpen(true)}
+                onNavigateTab={(tab) => setActiveTab(tab)}
               />
+            )}
+
+            {activeTab === 'jadwal' && (
+              <ScheduleList
+                schedules={schedules}
+                docks={docks}
+                searchParams={scheduleSearchParams}
+                onClearSearchParams={() => setScheduleSearchParams({})}
+                onSelectBooking={(sch) => setSelectedBookingSchedule(sch)}
+              />
+            )}
+
+            {activeTab === 'rute' && (
+              <RouteCatalog
+                routes={routes}
+                docks={docks}
+                weatherReports={weatherReports}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                onSearchSchedules={(origin, dest) => {
+                  handleSearchSchedules(origin, dest, '');
+                }}
+              />
+            )}
+
+            {activeTab === 'tiket' && (
+              <MyTickets
+                reservations={reservations}
+                onOpenBookingWizard={() => setIsBookingWizardOpen(true)}
+                onRefreshReservations={loadAllData}
+                onTrackVessel={handleTrackVessel}
+              />
+            )}
+
+            {activeTab === 'cuaca' && <WeatherPage reports={weatherReports} />}
+
+            {activeTab === 'sos' && (
+              <div className="bg-white p-6 rounded-3xl border border-red-200 text-center space-y-4">
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                  🚨
+                </div>
+                <h2 className="text-xl font-bold">Panggilan Darurat SOS Pelayaran</h2>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Tekan tombol di bawah ini jika Anda berada dalam situasi darurat di atas kapal atau di perairan.
+                </p>
+                <button
+                  onClick={() => setIsSOSOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-extrabold px-6 py-3 rounded-2xl text-sm shadow-lg shadow-red-600/30 cursor-pointer"
+                >
+                  Buka Menu Darurat SOS
+                </button>
+              </div>
             )}
           </main>
 
-          {/* Passenger Bottom Navigation Bar (Only visible when user is logged in) */}
-          {activeRole === 'passenger' && (
-            <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200/90 shadow-lg py-2 px-3 sm:px-4 flex items-center justify-around">
-              <button
-                onClick={() => setActiveTab('beranda')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'beranda' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Home className="w-5 h-5" />
-                <span>Beranda</span>
-              </button>
+          {/* Passenger Bottom Navigation Bar */}
+          <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200/90 shadow-lg py-2 px-3 sm:px-4 flex items-center justify-around">
+            <button
+              onClick={() => setActiveTab('beranda')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'beranda' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span>Beranda</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('peta')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'peta' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Map className="w-5 h-5" />
-                <span>Live Map</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('peta')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'peta' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Map className="w-5 h-5" />
+              <span>Live Map</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('jadwal')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'jadwal' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Calendar className="w-5 h-5" />
-                <span>Jadwal</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('jadwal')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'jadwal' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span>Jadwal</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('rute')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'rute' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Compass className="w-5 h-5" />
-                <span>Rute</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('rute')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'rute' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Compass className="w-5 h-5" />
+              <span>Rute</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('tiket')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'tiket' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Ticket className="w-5 h-5" />
-                <span>Tiket</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('tiket')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'tiket' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Ticket className="w-5 h-5" />
+              <span>Tiket</span>
+            </button>
 
-              <button
-                onClick={() => setActiveTab('cuaca')}
-                className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
-                  activeTab === 'cuaca' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <CloudSun className="w-5 h-5" />
-                <span>Cuaca</span>
-              </button>
+            <button
+              onClick={() => setActiveTab('cuaca')}
+              className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer ${
+                activeTab === 'cuaca' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <CloudSun className="w-5 h-5" />
+              <span>Cuaca</span>
+            </button>
 
-              <button
-                onClick={handleLogout}
-                className="flex flex-col items-center space-y-0.5 text-[10px] font-bold text-red-400 hover:text-red-600 cursor-pointer"
-                title="Keluar dari akun"
-              >
-                <UserIcon className="w-5 h-5" />
-                <span>Keluar</span>
-              </button>
-            </nav>
-          )}
+            <button
+              onClick={handleLogout}
+              className="flex flex-col items-center space-y-0.5 text-[10px] font-bold text-red-400 hover:text-red-600 cursor-pointer"
+              title="Keluar dari akun"
+            >
+              <UserIcon className="w-5 h-5" />
+              <span>Keluar</span>
+            </button>
+          </nav>
         </>
       )}
 

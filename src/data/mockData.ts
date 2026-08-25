@@ -17,36 +17,6 @@ export const INITIAL_USERS: User[] = [
     role: 'passenger',
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
   },
-  {
-    id: 'usr_op_1',
-    name: 'Captain Bambang Rusli',
-    email: 'bambang.nakhoda@kapalku.id',
-    phone: '0821-9876-5432',
-    role: 'operator',
-    agencyOrVessel: 'KMP Jawatutu (ASDP Balikpapan)',
-    nipOrLicense: 'ANT-III / 620199482',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'usr_op_2',
-    name: 'Captain Rahman Hakim',
-    email: 'rahman.express@kapalku.id',
-    phone: '0813-8877-6655',
-    role: 'operator',
-    agencyOrVessel: 'KM Express Bahari 2C',
-    nipOrLicense: 'ANT-IV / 771203991',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'usr_admin_1',
-    name: 'Drs. Hendra Syahbandar',
-    email: 'syahbandar.admin@kapalku.go.id',
-    phone: '0811-2233-4455',
-    role: 'admin',
-    agencyOrVessel: 'KSOP Kelas I Balikpapan (Kemenhub)',
-    nipOrLicense: 'NIP. 19780412 200212 1 003',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-  },
 ];
 
 export const INITIAL_DOCKS: Dock[] = [

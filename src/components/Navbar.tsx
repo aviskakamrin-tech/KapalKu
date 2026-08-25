@@ -1,27 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Anchor, ShieldAlert, Bell, Ship, UserCheck, Compass, LogIn, LogOut, User as UserIcon, ChevronDown, Check, ShieldCheck } from 'lucide-react';
-import { Role, User } from '../types';
+import { Anchor, ShieldAlert, Bell, LogIn, LogOut, User as UserIcon, ChevronDown, ShieldCheck } from 'lucide-react';
+import { User } from '../types';
 
 interface NavbarProps {
-  activeRole: Role;
-  onRoleChange: (role: Role) => void;
   unreadCount: number;
   onOpenNotifications: () => void;
   onOpenSOS: () => void;
   currentUser: User | null;
   onOpenLogin: () => void;
   onLogout: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  activeRole,
-  onRoleChange,
   unreadCount,
   onOpenNotifications,
   onOpenSOS,
   currentUser,
   onOpenLogin,
   onLogout,
+  onNavigateTab,
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Brand */}
           <div
             className="flex items-center space-x-3 cursor-pointer select-none"
-            onClick={() => onRoleChange('passenger')}
+            onClick={() => onNavigateTab && onNavigateTab('beranda')}
           >
             <div className="bg-sky-500 p-2 rounded-xl text-white shadow-lg shadow-sky-500/30 flex items-center justify-center">
               <Anchor className="w-6 h-6 animate-pulse" />
@@ -61,54 +59,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Switcher Pills */}
-          <div className="hidden sm:flex items-center bg-sky-950/80 p-1 rounded-xl border border-sky-800/60 shadow-inner">
-            <button
-              onClick={() => onRoleChange('passenger')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeRole === 'passenger'
-                  ? 'bg-sky-500 text-white shadow-md'
-                  : 'text-sky-200 hover:text-white hover:bg-sky-900/50'
-              }`}
-              title="Mode Penumpang / Warga"
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>Penumpang</span>
-            </button>
-
-            <button
-              onClick={() => onRoleChange('operator')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeRole === 'operator'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-sky-200 hover:text-white hover:bg-sky-900/50'
-              }`}
-              title="Mode Nakhoda / Operator Kapal"
-            >
-              <Ship className="w-3.5 h-3.5" />
-              <span>Nakhoda</span>
-            </button>
-
-            <button
-              onClick={() => onRoleChange('admin')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeRole === 'admin'
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : 'text-sky-200 hover:text-white hover:bg-sky-900/50'
-              }`}
-              title="Mode Syahbandar / Admin Pelabuhan"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Syahbandar</span>
-            </button>
-          </div>
-
           {/* Right Actions: Notifications, SOS & User Profile / Login */}
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Notification Bell */}
             <button
               onClick={onOpenNotifications}
-              className="relative p-2 rounded-xl text-sky-200 hover:bg-sky-900/80 hover:text-white transition-colors"
+              className="relative p-2 rounded-xl text-sky-200 hover:bg-sky-900/80 hover:text-white transition-colors cursor-pointer"
               title="Notifikasi Pelayaran"
             >
               <Bell className="w-5 h-5" />
@@ -122,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* SOS Emergency Button */}
             <button
               onClick={onOpenSOS}
-              className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 transition-all active:scale-95 sos-beacon"
+              className="flex items-center space-x-1 bg-red-600 hover:bg-red-700 text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 transition-all active:scale-95 sos-beacon cursor-pointer"
             >
               <ShieldAlert className="w-4 h-4 animate-bounce" />
               <span>SOS</span>
@@ -133,7 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center space-x-2 bg-sky-950/70 hover:bg-sky-900 border border-sky-700/60 pl-1.5 pr-2.5 py-1 rounded-xl transition-all"
+                  className="flex items-center space-x-2 bg-sky-950/70 hover:bg-sky-900 border border-sky-700/60 pl-1.5 pr-2.5 py-1 rounded-xl transition-all cursor-pointer"
                 >
                   <img
                     src={currentUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.name}`}
@@ -144,8 +100,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="text-[11px] font-bold text-white max-w-[130px] truncate leading-tight" title={currentUser.name}>
                       {currentUser.name}
                     </div>
-                    <div className="text-[9px] text-sky-300 capitalize leading-tight">
-                      {currentUser.role === 'passenger' ? 'Penumpang' : currentUser.role === 'operator' ? 'Nakhoda' : 'Syahbandar'}
+                    <div className="text-[9px] text-sky-300 leading-tight">
+                      Penumpang
                     </div>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-sky-300" />
@@ -158,15 +114,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="text-xs font-bold text-slate-900">{currentUser.name}</div>
                       <div className="text-[11px] text-slate-500 truncate">{currentUser.email || currentUser.phone}</div>
                       <div className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800">
-                        {currentUser.role === 'passenger' && '👥 Akun Penumpang'}
-                        {currentUser.role === 'operator' && '👨‍✈️ Akun Nakhoda Kapal'}
-                        {currentUser.role === 'admin' && '🛡️ Akun Otoritas Syahbandar'}
+                        👥 Akun Penumpang
                       </div>
-                      {currentUser.agencyOrVessel && (
-                        <div className="text-[10px] text-slate-600 mt-1 font-medium">
-                          ⚓ {currentUser.agencyOrVessel}
-                        </div>
-                      )}
                     </div>
 
                     <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center space-x-1.5 text-[10px] text-slate-500 font-medium">
@@ -180,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setIsProfileMenuOpen(false);
                           onOpenLogin();
                         }}
-                        className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 flex items-center space-x-2"
+                        className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 flex items-center space-x-2 cursor-pointer"
                       >
                         <UserIcon className="w-4 h-4 text-sky-600" />
                         <span>Ganti Akun / Masuk Lain</span>
@@ -191,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           setIsProfileMenuOpen(false);
                           onLogout();
                         }}
-                        className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-semibold flex items-center space-x-2"
+                        className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-semibold flex items-center space-x-2 cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 text-red-500" />
                         <span>Keluar (Logout)</span>
@@ -203,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={onOpenLogin}
-                className="flex items-center space-x-1.5 bg-sky-500 hover:bg-sky-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-sky-500/20 transition-all active:scale-95"
+                className="flex items-center space-x-1.5 bg-sky-500 hover:bg-sky-400 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-sky-500/20 transition-all active:scale-95 cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Masuk</span>
@@ -212,16 +161,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Role Banner Indicator */}
-      <div className="bg-sky-950/90 text-sky-300 text-[11px] py-1 px-4 border-t border-sky-900 flex justify-between items-center text-center">
-        <span className="mx-auto font-medium">
-          {activeRole === 'passenger' && '👥 Mode Penumpang: Cari rute, jadwal, reservasi tiket & pantau lokasi kapal real-time.'}
-          {activeRole === 'operator' && '👨‍✈️ Mode Nakhoda / Operator: Kelola GPS tracking, update status pelayaran & manifest penumpang.'}
-          {activeRole === 'admin' && '🛡️ Mode Syahbandar / Admin: Monitoring lalu lintas laut, persetujuan SPB, cuaca & tanggap SOS.'}
-        </span>
-      </div>
     </header>
   );
 };
-

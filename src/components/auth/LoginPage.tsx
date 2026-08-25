@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { Role, User } from '../../types';
+import { User } from '../../types';
 import { api } from '../../lib/api';
-import { INITIAL_USERS } from '../../data/mockData';
 import {
   Anchor,
   Compass,
   Ship,
-  UserCheck,
   Lock,
   Mail,
   Phone,
@@ -17,27 +15,21 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
-  Sparkles,
-  ArrowLeft,
   KeyRound,
   FileText,
-  BadgeAlert,
 } from 'lucide-react';
 
 interface LoginPageProps {
   currentUser: User | null;
   onLoginSuccess: (user: User) => void;
   onClose?: () => void;
-  initialRole?: Role;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({
   currentUser,
   onLoginSuccess,
-  initialRole = 'passenger',
 }) => {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [selectedRole, setSelectedRole] = useState<Role>(initialRole);
 
   // Login Form States
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -51,8 +43,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
-  const [regAgency, setRegAgency] = useState('');
-  const [regLicense, setRegLicense] = useState('');
   const [regAgreed, setRegAgreed] = useState(false);
 
   // Feedback & State
@@ -63,31 +53,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [forgotInput, setForgotInput] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
 
-  // Fast Demo Login
-  const handleQuickLogin = async (user: User) => {
-    setIsLoading(true);
-    setErrorMessage('');
-    try {
-      const res = await api.login({
-        identifier: user.email,
-        role: user.role,
-      });
-      setSuccessMessage(`Berhasil masuk sebagai ${user.name} (${getRoleLabel(user.role)})`);
-      setTimeout(() => {
-        onLoginSuccess(res.user);
-      }, 500);
-    } catch (err: any) {
-      // Fallback local login if server offline
-      onLoginSuccess(user);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginIdentifier.trim()) {
-      setErrorMessage('Silakan masukkan email, nomor HP, atau ID akun Anda.');
+      setErrorMessage('Silakan masukkan nama lengkap, email, atau nomor HP Anda.');
       return;
     }
 
@@ -99,7 +68,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       const res = await api.login({
         identifier: loginIdentifier.trim(),
         password: loginPassword,
-        role: selectedRole,
+        role: 'passenger',
       });
 
       setSuccessMessage(res.message || `Selamat datang kembali, ${res.user.name}!`);
@@ -145,9 +114,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         name: regName.trim(),
         email: regEmail.trim() || undefined,
         phone: regPhone.trim() || undefined,
-        role: selectedRole,
-        agencyOrVessel: regAgency.trim() || undefined,
-        nipOrLicense: regLicense.trim() || undefined,
+        role: 'passenger',
         password: regPassword,
       });
 
@@ -168,19 +135,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setForgotSuccess(true);
   };
 
-  const getRoleLabel = (role: Role) => {
-    switch (role) {
-      case 'passenger':
-        return 'Penumpang';
-      case 'operator':
-        return 'Nakhoda / Operator Kapal';
-      case 'admin':
-        return 'Syahbandar / Otoritas Pelabuhan';
-      default:
-        return role;
-    }
-  };
-
   return (
     <div className="w-full max-w-4xl mx-auto py-2 sm:py-6 px-2 sm:px-4">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
@@ -199,7 +153,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <div className="flex items-center space-x-1.5">
                   <span className="font-extrabold text-2xl tracking-tight text-white">KapalKu</span>
                   <span className="text-[10px] bg-sky-400/20 border border-sky-400/30 text-sky-200 px-2 py-0.5 rounded-md font-mono font-bold">
-                    PORTAL AKUN
+                    PORTAL PENUMPANG
                   </span>
                 </div>
                 <p className="text-xs text-sky-200 font-medium">
@@ -210,10 +164,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
             <div className="pt-2">
               <h2 className="text-lg font-bold text-sky-100">
-                {authMode === 'login' ? 'Masuk ke Layanan Maritim' : 'Registrasi Akun Baru'}
+                {authMode === 'login' ? 'Masuk ke Layanan Penumpang' : 'Registrasi Akun Penumpang'}
               </h2>
               <p className="text-xs text-sky-200/90 leading-relaxed mt-1">
-                Akses jadwal keberangkatan, pemesanan tiket feri & speedboat, live radar AIS kapal, laporan BMKG, serta otorisasi operasional pelabuhan.
+                Akses jadwal keberangkatan, pemesanan tiket feri & speedboat, live radar AIS kapal yang Anda tumpangi, informasi cuaca pelayaran BMKG, dan boarding pass elektronik.
               </p>
             </div>
           </div>
@@ -222,15 +176,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div className="relative z-10 my-6 bg-sky-950/70 border border-sky-700/50 rounded-2xl p-4 space-y-3.5 backdrop-blur-sm shadow-inner">
             <span className="text-[11px] font-bold tracking-wide uppercase text-sky-300 flex items-center space-x-1.5">
               <ShieldCheck className="w-4 h-4 text-sky-400" />
-              <span>Layanan Terpadu Maritim</span>
+              <span>Fitur Layanan Penumpang</span>
             </span>
 
             <div className="space-y-2.5 text-xs text-sky-100">
               <div className="flex items-start space-x-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
                 <Ship className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white text-[11px]">Radar AIS & Pelacakan Kapal</div>
-                  <div className="text-[10px] text-sky-200/80">Posisi real-time kapal pesanan Anda di alur laut Nusantara.</div>
+                  <div className="font-bold text-white text-[11px]">Live Map Radar AIS</div>
+                  <div className="text-[10px] text-sky-200/80">Pantau posisi kapal tiket Anda sepanjang alur laut nyata.</div>
                 </div>
               </div>
 
@@ -238,15 +192,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <FileText className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold text-white text-[11px]">E-Ticket Resmi & QR Gate</div>
-                  <div className="text-[10px] text-sky-200/80">Validasi instan manifest keberangkatan dan boarding pass.</div>
+                  <div className="text-[10px] text-sky-200/80">Pemesanan praktis dengan boarding pass dan invoice digital.</div>
                 </div>
               </div>
 
               <div className="flex items-start space-x-2.5 p-2 rounded-xl bg-white/5 border border-white/10">
                 <Compass className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-white text-[11px]">Telemetri Cuaca BMKG & SOS</div>
-                  <div className="text-[10px] text-sky-200/80">Info gelombang maritim dan akses darurat Syahbandar 24 jam.</div>
+                  <div className="font-bold text-white text-[11px]">Info Cuaca BMKG & SOS</div>
+                  <div className="text-[10px] text-sky-200/80">Informasi gelombang laut dan tombol bantuan darurat 24 jam.</div>
                 </div>
               </div>
             </div>
@@ -255,7 +209,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {/* Bottom Security Assurance */}
           <div className="relative z-10 pt-2 border-t border-sky-800/80 flex items-center space-x-2 text-[11px] text-sky-300">
             <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span>Terhubung Standar Keselamatan Laut Kemenhub RI & BMKG</span>
+            <span>Terintegrasi Standar Keselamatan Laut Kemenhub RI & BMKG</span>
           </div>
         </div>
 
@@ -296,65 +250,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
             </div>
 
-            {/* Role Picker Selector */}
-            <div className="mb-5">
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                Pilih Tipe Peran Pengguna:
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('passenger')}
-                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center space-y-1 ${
-                    selectedRole === 'passenger'
-                      ? 'border-sky-500 bg-sky-50/80 text-sky-900 shadow-sm ring-2 ring-sky-500/20'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <Compass
-                    className={`w-4 h-4 ${
-                      selectedRole === 'passenger' ? 'text-sky-600' : 'text-slate-400'
-                    }`}
-                  />
-                  <span className="text-[11px] font-bold">Penumpang</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('operator')}
-                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center space-y-1 ${
-                    selectedRole === 'operator'
-                      ? 'border-emerald-600 bg-emerald-50/80 text-emerald-900 shadow-sm ring-2 ring-emerald-600/20'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <Ship
-                    className={`w-4 h-4 ${
-                      selectedRole === 'operator' ? 'text-emerald-600' : 'text-slate-400'
-                    }`}
-                  />
-                  <span className="text-[11px] font-bold">Nakhoda</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('admin')}
-                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center space-y-1 ${
-                    selectedRole === 'admin'
-                      ? 'border-amber-600 bg-amber-50/80 text-amber-900 shadow-sm ring-2 ring-amber-600/20'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                  }`}
-                >
-                  <UserCheck
-                    className={`w-4 h-4 ${
-                      selectedRole === 'admin' ? 'text-amber-600' : 'text-slate-400'
-                    }`}
-                  />
-                  <span className="text-[11px] font-bold">Syahbandar</span>
-                </button>
-              </div>
-            </div>
-
             {/* Alert Messages */}
             {errorMessage && (
               <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs flex items-start space-x-2.5">
@@ -375,31 +270,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    {selectedRole === 'passenger' && 'Nama Lengkap, Email, atau No. WhatsApp'}
-                    {selectedRole === 'operator' && 'Nama Nakhoda, Email, atau No. Buku Pelaut'}
-                    {selectedRole === 'admin' && 'Nama Syahbandar, Email Dinas, atau NIP'}
+                    Nama Lengkap, Email, atau Nomor WhatsApp / HP
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      {selectedRole === 'passenger' ? (
-                        <UserIcon className="w-4 h-4 text-sky-600" />
-                      ) : selectedRole === 'operator' ? (
-                        <Ship className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <KeyRound className="w-4 h-4 text-amber-600" />
-                      )}
+                      <UserIcon className="w-4 h-4 text-sky-600" />
                     </div>
                     <input
                       type="text"
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
-                      placeholder={
-                        selectedRole === 'passenger'
-                          ? 'Masukkan Nama Lengkap / Email / No. HP Anda'
-                          : selectedRole === 'operator'
-                          ? 'Masukkan Nama Nakhoda / Email / ID Kapal'
-                          : 'Masukkan Nama Syahbandar / NIP / Email Dinas'
-                      }
+                      placeholder="Masukkan nama lengkap, email, atau nomor HP"
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all"
                       required
                     />
@@ -529,57 +410,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </div>
                 </div>
 
-                {/* Conditional Fields for Operator or Admin */}
-                {selectedRole === 'operator' && (
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5">
-                    <div className="text-[11px] font-bold text-emerald-800 flex items-center space-x-1.5">
-                      <Ship className="w-3.5 h-3.5" />
-                      <span>Data Awak / Operator Kapal</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={regAgency}
-                        onChange={(e) => setRegAgency(e.target.value)}
-                        placeholder="Nama Kapal (e.g. KMP Jawatutu)"
-                        className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={regLicense}
-                        onChange={(e) => setRegLicense(e.target.value)}
-                        placeholder="No. Ijazah/BST (e.g. ANT-IV)"
-                        className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {selectedRole === 'admin' && (
-                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5">
-                    <div className="text-[11px] font-bold text-amber-800 flex items-center space-x-1.5">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>Data Otoritas Pelabuhan / KSOP</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={regAgency}
-                        onChange={(e) => setRegAgency(e.target.value)}
-                        placeholder="Kantor KSOP/UPP Pelabuhan"
-                        className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={regLicense}
-                        onChange={(e) => setRegLicense(e.target.value)}
-                        placeholder="Nomor Induk Pegawai (NIP)"
-                        className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -645,7 +475,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
           {/* Bottom Security & Help Footer */}
           <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Perlu bantuan akses maritim?</span>
+            <span>Perlu bantuan akses tiket & jadwal?</span>
             <span className="font-semibold text-sky-700">Call Center: 1500-112</span>
           </div>
         </div>
