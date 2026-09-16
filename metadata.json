@@ -1,6 +1,6 @@
 {
   "name": "KapalKu",
-  "description": "Informasi Laut, Lebih Mudah dan Aman. Platform informasi, reservasi tiket, live tracking GPS, cuaca BMKG, dan SOS transportasi laut lokal.",
-  "requestFramePermissions": ["geolocation"],
+  "description": "Informasi Laut, Lebih Mudah dan Aman. Platform informasi jadwal, reservasi tiket feri & speedboat, live tracking GPS posisi kapal, dan cuaca maritim BMKG.",
+  "requestFramePermissions": ["geolocation", "camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

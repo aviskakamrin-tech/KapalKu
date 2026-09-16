@@ -1,4 +1,4 @@
-export type Role = 'passenger';
+export type Role = 'admin' | 'officer' | 'passenger';
 
 export type VesselType = 'Klotok' | 'Speedboat' | 'Feri' | 'Kapal Perintis' | 'Lainnya';
 
@@ -27,6 +27,7 @@ export interface Vessel {
   capacityPassengers: number;
   capacityMotorbikes: number;
   capacityCars: number;
+  capacityTrucks?: number;
   status: VesselStatus;
   operatorId: string;
   operatorName: string;
@@ -37,9 +38,12 @@ export interface Vessel {
   currentLng: number;
   lastUpdated: string;
   currentRouteId?: string;
+  operatingRoutesDescription?: string;
 }
 
 export type RegionIndonesia = 'Jawa & Bali' | 'Sumatera' | 'Kalimantan' | 'Sulawesi' | 'Nusa Tenggara' | 'Maluku & Papua';
+
+export type DockRole = 'both' | 'origin_only' | 'destination_only';
 
 export interface Dock {
   id: string;
@@ -50,6 +54,10 @@ export interface Dock {
   status: 'Aktif' | 'Perbaikan' | 'Non-Aktif';
   province?: string;
   region?: RegionIndonesia;
+  city?: string;
+  dockRole?: DockRole;
+  facilities?: string[];
+  contactPhone?: string;
 }
 
 export interface RouteItem {
@@ -60,10 +68,13 @@ export interface RouteItem {
   destinationDockId: string;
   destinationDockName: string;
   distanceKm: number;
+  distanceMiles?: number;
   estimatedDurationMinutes: number;
   tariffPassenger: number;
+  tariffChild?: number;
   tariffMotorbike: number;
   tariffCar: number;
+  tariffTruck?: number;
   status: 'Operasional' | 'Ditutup' | 'Waspada';
   region?: RegionIndonesia;
   vesselTypesAvailable?: VesselType[];
@@ -85,14 +96,17 @@ export interface Schedule {
   departureTime: string; // HH:mm
   estimatedArrivalTime: string; // HH:mm
   tariffPassenger: number;
+  tariffChild?: number;
   tariffMotorbike: number;
   tariffCar: number;
+  tariffTruck?: number;
   status: ScheduleStatus;
   statusReason?: string;
   bookedPassengers: number;
   maxPassengers: number;
   bookedMotorbikes: number;
   bookedCars: number;
+  bookedTrucks?: number;
 }
 
 export interface PassengerDetail {
@@ -132,6 +146,8 @@ export interface Reservation {
   reservationStatus: 'Terkonfirmasi' | 'Menunggu Pembayaran' | 'Dibatalkan' | 'Selesai';
   checkInStatus?: 'Belum Check-In' | 'Sudah Check-In (Boarded)';
   checkInTime?: string;
+  scannedBy?: string;
+  scannedAt?: string;
   gateNumber?: string;
   createdAt: string;
   qrCodeUrl?: string;

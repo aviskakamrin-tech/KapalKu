@@ -508,7 +508,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
 
               <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
-                {availableSchedules.length === 0 ? (
+                {allSchedules.length === 0 ? (
+                  <div className="p-8 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-3">
+                    <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto">
+                      <Ship className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-amber-900">
+                        Belum Ada Jadwal Keberangkatan yang Diterbitkan
+                      </p>
+                      <p className="text-[11px] text-amber-700 max-w-sm mx-auto mt-1 leading-relaxed">
+                        Administrator Syahbandar belum menambahkan jadwal pelayaran kapal. Pemesanan tiket akan dibuka setelah jadwal resmi diterbitkan.
+                      </p>
+                    </div>
+                  </div>
+                ) : availableSchedules.length === 0 ? (
                   <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2">
                     <AlertTriangle className="w-8 h-8 text-amber-600 mx-auto" />
                     <p className="text-xs font-bold text-amber-900">
@@ -584,8 +598,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={!activeSch}
                   onClick={() => setCurrentStep(4)}
-                  className="py-2.5 px-6 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5"
+                  className={`py-2.5 px-6 font-bold text-xs rounded-xl shadow-md flex items-center space-x-1.5 ${
+                    !activeSch
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer'
+                  }`}
                 >
                   <span>Lanjut: Isi Manifest</span>
                   <ArrowRight className="w-4 h-4" />

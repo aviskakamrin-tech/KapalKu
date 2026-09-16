@@ -217,6 +217,16 @@ async function startServer() {
     res.json(updated);
   });
 
+  app.delete('/api/vessels/:id', (req, res) => {
+    const { id } = req.params;
+    const target = vessels.find((v) => v.id === id);
+    vessels = vessels.filter((v) => v.id !== id);
+    if (target) {
+      addAuditLog('Admin Syahbandar', 'admin', 'DELETE_VESSEL', `Menghapus armada kapal: ${target.name}`);
+    }
+    res.json({ success: true });
+  });
+
   // GPS Update endpoint for Operator App
   app.post('/api/gps/update', (req, res) => {
     const { vesselId, lat, lng, speedKts, headingDeg, status } = req.body;
@@ -248,6 +258,25 @@ async function startServer() {
     res.status(201).json(newDock);
   });
 
+  app.put('/api/docks/:id', (req, res) => {
+    const { id } = req.params;
+    const index = docks.findIndex((d) => d.id === id);
+    if (index === -1) return res.status(404).json({ error: 'Dock not found' });
+    docks[index] = { ...docks[index], ...req.body };
+    addAuditLog('Admin Syahbandar', 'admin', 'UPDATE_DOCK', `Memperbarui dermaga: ${docks[index].name}`);
+    res.json(docks[index]);
+  });
+
+  app.delete('/api/docks/:id', (req, res) => {
+    const { id } = req.params;
+    const target = docks.find((d) => d.id === id);
+    docks = docks.filter((d) => d.id !== id);
+    if (target) {
+      addAuditLog('Admin Syahbandar', 'admin', 'DELETE_DOCK', `Menghapus dermaga: ${target.name}`);
+    }
+    res.json({ success: true });
+  });
+
   // Routes
   app.get('/api/routes', (_req, res) => {
     res.json(routes);
@@ -258,6 +287,25 @@ async function startServer() {
     routes.push(newRoute);
     addAuditLog('Admin Syahbandar', 'admin', 'ADD_ROUTE', `Menambah rute pelayaran: ${newRoute.name}`);
     res.status(201).json(newRoute);
+  });
+
+  app.put('/api/routes/:id', (req, res) => {
+    const { id } = req.params;
+    const index = routes.findIndex((r) => r.id === id);
+    if (index === -1) return res.status(404).json({ error: 'Route not found' });
+    routes[index] = { ...routes[index], ...req.body };
+    addAuditLog('Admin Syahbandar', 'admin', 'UPDATE_ROUTE', `Memperbarui jalur pelayaran: ${routes[index].name}`);
+    res.json(routes[index]);
+  });
+
+  app.delete('/api/routes/:id', (req, res) => {
+    const { id } = req.params;
+    const target = routes.find((r) => r.id === id);
+    routes = routes.filter((r) => r.id !== id);
+    if (target) {
+      addAuditLog('Admin Syahbandar', 'admin', 'DELETE_ROUTE', `Menghapus jalur pelayaran: ${target.name}`);
+    }
+    res.json({ success: true });
   });
 
   // Schedules
@@ -295,6 +343,16 @@ async function startServer() {
 
     addAuditLog('Operator/Admin', 'admin', 'UPDATE_SCHEDULE', `Update jadwal ${schedules[index].vesselName} status: ${schedules[index].status}`);
     res.json(schedules[index]);
+  });
+
+  app.delete('/api/schedules/:id', (req, res) => {
+    const { id } = req.params;
+    const target = schedules.find((s) => s.id === id);
+    schedules = schedules.filter((s) => s.id !== id);
+    if (target) {
+      addAuditLog('Admin Syahbandar', 'admin', 'DELETE_SCHEDULE', `Menghapus jadwal kapal: ${target.vesselName}`);
+    }
+    res.json({ success: true });
   });
 
   // Reservations / Bookings

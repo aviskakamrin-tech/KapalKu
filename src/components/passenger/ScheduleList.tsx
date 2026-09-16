@@ -196,18 +196,27 @@ export const ScheduleList: React.FC<ScheduleListProps> = ({
             </label>
             <select
               value={selectedOrigin}
+              disabled={docks.length === 0}
               onChange={(e) => {
                 setSelectedOrigin(e.target.value);
                 setIsSearchActive(true);
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="">Semua Dermaga Asal</option>
-              {docks.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name} ({d.region || d.province})
-                </option>
-              ))}
+              {docks.length === 0 ? (
+                <option value="">Belum ada dermaga asal (Daftarkan via Admin)</option>
+              ) : (
+                <>
+                  <option value="">Semua Dermaga Asal</option>
+                  {docks
+                    .filter((d) => !d.dockRole || d.dockRole === 'both' || d.dockRole === 'origin_only')
+                    .map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} {d.city ? `(${d.city})` : `(${d.region || d.province})`}
+                      </option>
+                    ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -218,18 +227,27 @@ export const ScheduleList: React.FC<ScheduleListProps> = ({
             </label>
             <select
               value={selectedDestination}
+              disabled={docks.length === 0}
               onChange={(e) => {
                 setSelectedDestination(e.target.value);
                 setIsSearchActive(true);
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="">Semua Dermaga Tujuan</option>
-              {docks.map((d) => (
-                <option key={d.id} value={d.name}>
-                  {d.name} ({d.region || d.province})
-                </option>
-              ))}
+              {docks.length === 0 ? (
+                <option value="">Belum ada dermaga tujuan (Daftarkan via Admin)</option>
+              ) : (
+                <>
+                  <option value="">Semua Dermaga Tujuan</option>
+                  {docks
+                    .filter((d) => !d.dockRole || d.dockRole === 'both' || d.dockRole === 'destination_only')
+                    .map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} {d.city ? `(${d.city})` : `(${d.region || d.province})`}
+                      </option>
+                    ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -267,7 +285,21 @@ export const ScheduleList: React.FC<ScheduleListProps> = ({
 
       {/* Schedule Table / Cards */}
       <div className="space-y-4">
-        {filteredSchedules.length === 0 ? (
+        {schedules.length === 0 ? (
+          <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 shadow-sm">
+            <div className="w-14 h-14 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">
+                Belum Ada Jadwal Pelayaran yang Diterbitkan
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                Saat ini belum ada jadwal keberangkatan kapal yang ditambahkan oleh Administrator. Jadwal resmi akan otomatis muncul di sini setelah dibuat dan dipublikasikan melalui Portal Admin.
+              </p>
+            </div>
+          </div>
+        ) : filteredSchedules.length === 0 ? (
           <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 shadow-sm">
             <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
               <Search className="w-7 h-7" />

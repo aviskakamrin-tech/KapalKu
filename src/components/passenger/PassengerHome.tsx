@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, ShieldAlert, Clock, ArrowRight, Anchor, Users, Navigation, UserCheck } from 'lucide-react';
+import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, Clock, ArrowRight, Anchor, Users, Navigation, UserCheck } from 'lucide-react';
 import { Dock, Schedule, WeatherReport, Reservation, User } from '../../types';
 
 interface PassengerHomeProps {
@@ -31,8 +31,17 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
   const activeBookings = reservations.filter((r) => r.reservationStatus !== 'Dibatalkan');
 
+  // Filter docks based on their role
+  const originDocks = docks.filter((d) => !d.dockRole || d.dockRole === 'both' || d.dockRole === 'origin_only');
+  const destinationDocks = docks.filter((d) => !d.dockRole || d.dockRole === 'both' || d.dockRole === 'destination_only');
+  const hasDocks = docks.length > 0;
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasDocks) {
+      alert('Belum ada dermaga yang terdaftar dalam sistem. Silakan tambahkan dermaga asal & tujuan di Portal Admin terlebih dahulu.');
+      return;
+    }
     onSearchSchedules(originDockId, destinationDockId, travelDate);
   };
 
@@ -118,6 +127,28 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
           {/* Search Form */}
           <form onSubmit={handleSearchSubmit} className="bg-white/95 backdrop-blur-lg p-4 sm:p-6 rounded-2xl shadow-2xl text-slate-800 border border-white/40 space-y-4 mt-6">
+            {!hasDocks && (
+              <div className="bg-amber-50 border border-amber-300/80 rounded-xl p-3 text-amber-900 text-xs flex items-start space-x-2.5">
+                <span className="text-base leading-none">⚠️</span>
+                <div className="flex-1">
+                  <div className="font-bold">Belum Ada Pilihan Dermaga Asal & Tujuan</div>
+                  <p className="text-amber-800 text-[11px] mt-0.5">
+                    Pilihan dermaga keberangkatan dan kedatangan tidak tersedia sebelum ditambahkan oleh Administrator di menu Admin.
+                  </p>
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'officer') && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTab('admin')}
+                      className="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all inline-flex items-center space-x-1 cursor-pointer"
+                    >
+                      <span>Buka Menu Admin untuk Tambah Dermaga</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Origin */}
               <div>
@@ -127,23 +158,30 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
                 </label>
                 <select
                   value={originDockId}
+                  disabled={!hasDocks || originDocks.length === 0}
                   onChange={(e) => setOriginDockId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="">Semua Dermaga Asal</option>
-                  {['Jawa & Bali', 'Sumatera', 'Kalimantan', 'Sulawesi', 'Nusa Tenggara', 'Maluku & Papua'].map((reg) => {
-                    const regDocks = docks.filter((d) => d.region === reg || (!d.region && reg === 'Kalimantan'));
-                    if (regDocks.length === 0) return null;
-                    return (
-                      <optgroup key={reg} label={`📍 ${reg}`}>
-                        {regDocks.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
+                  {!hasDocks || originDocks.length === 0 ? (
+                    <option value="">Belum ada dermaga asal (Daftarkan via Admin)</option>
+                  ) : (
+                    <>
+                      <option value="">Semua Dermaga Asal</option>
+                      {['Jawa & Bali', 'Sumatera', 'Kalimantan', 'Sulawesi', 'Nusa Tenggara', 'Maluku & Papua'].map((reg) => {
+                        const regDocks = originDocks.filter((d) => d.region === reg || (!d.region && reg === 'Kalimantan'));
+                        if (regDocks.length === 0) return null;
+                        return (
+                          <optgroup key={reg} label={`📍 ${reg}`}>
+                            {regDocks.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} {d.city ? `(${d.city})` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -155,23 +193,30 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
                 </label>
                 <select
                   value={destinationDockId}
+                  disabled={!hasDocks || destinationDocks.length === 0}
                   onChange={(e) => setDestinationDockId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  <option value="">Semua Dermaga Tujuan</option>
-                  {['Jawa & Bali', 'Sumatera', 'Kalimantan', 'Sulawesi', 'Nusa Tenggara', 'Maluku & Papua'].map((reg) => {
-                    const regDocks = docks.filter((d) => d.region === reg || (!d.region && reg === 'Kalimantan'));
-                    if (regDocks.length === 0) return null;
-                    return (
-                      <optgroup key={reg} label={`📍 ${reg}`}>
-                        {regDocks.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
+                  {!hasDocks || destinationDocks.length === 0 ? (
+                    <option value="">Belum ada dermaga tujuan (Daftarkan via Admin)</option>
+                  ) : (
+                    <>
+                      <option value="">Semua Dermaga Tujuan</option>
+                      {['Jawa & Bali', 'Sumatera', 'Kalimantan', 'Sulawesi', 'Nusa Tenggara', 'Maluku & Papua'].map((reg) => {
+                        const regDocks = destinationDocks.filter((d) => d.region === reg || (!d.region && reg === 'Kalimantan'));
+                        if (regDocks.length === 0) return null;
+                        return (
+                          <optgroup key={reg} label={`📍 ${reg}`}>
+                            {regDocks.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name} {d.city ? `(${d.city})` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -192,17 +237,18 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
             <button
               type="submit"
-              className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-xl text-sm transition-all shadow-lg shadow-sky-600/30 flex items-center justify-center space-x-2 active:scale-[0.99]"
+              disabled={!hasDocks}
+              className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl text-sm transition-all shadow-lg shadow-sky-600/30 flex items-center justify-center space-x-2 active:scale-[0.99] cursor-pointer"
             >
               <Search className="w-4 h-4" />
-              <span>Cari Jadwal Kapal</span>
+              <span>{hasDocks ? 'Cari Jadwal Kapal' : 'Dermaga Belum Ditambahkan Admin'}</span>
             </button>
           </form>
         </div>
       </div>
 
       {/* Quick Menu Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
         <button
           onClick={() => onNavigateTab('peta')}
           className="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 flex flex-col items-center justify-center text-center group transition-all"
@@ -249,24 +295,13 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
         <button
           onClick={() => onNavigateTab('cuaca')}
-          className="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 flex flex-col items-center justify-center text-center group transition-all"
+          className="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 flex flex-col items-center justify-center text-center group transition-all col-span-2 sm:col-span-1"
         >
           <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1.5">
             <CloudSun className="w-5 h-5" />
           </div>
           <span className="text-xs font-bold text-slate-800">Cuaca</span>
           <span className="text-[10px] text-slate-500 hidden sm:inline">Gelombang Laut</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('sos')}
-          className="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md border border-red-200/80 flex flex-col items-center justify-center text-center group transition-all"
-        >
-          <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1.5">
-            <ShieldAlert className="w-5 h-5 text-red-600 animate-pulse" />
-          </div>
-          <span className="text-xs font-bold text-red-600">SOS</span>
-          <span className="text-[10px] text-slate-500 hidden sm:inline">Bantuan Darurat</span>
         </button>
       </div>
 
@@ -315,117 +350,131 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {upcomingSchedules.map((sch) => {
-            const seatsRemaining = sch.maxPassengers - sch.bookedPassengers;
-            const isFull = seatsRemaining <= 0;
-            const percentageUsed = Math.min(100, Math.round((sch.bookedPassengers / sch.maxPassengers) * 100));
+        {upcomingSchedules.length === 0 ? (
+          <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200/90 text-center space-y-3 shadow-sm">
+            <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Belum Ada Jadwal Pelayaran yang Diterbitkan</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                Jadwal keberangkatan resmi kapal akan muncul di sini setelah ditambahkan dan diverifikasi oleh Administrator Syahbandar.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {upcomingSchedules.map((sch) => {
+              const seatsRemaining = sch.maxPassengers - sch.bookedPassengers;
+              const isFull = seatsRemaining <= 0;
+              const percentageUsed = Math.min(100, Math.round((sch.bookedPassengers / sch.maxPassengers) * 100));
 
-            return (
-              <div
-                key={sch.id}
-                className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all space-y-3"
-              >
-                {/* Header info */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md mb-1">
-                      {sch.vesselType}
-                    </span>
-                    <h3 className="font-bold text-slate-900 text-base">{sch.vesselName}</h3>
-                  </div>
+              return (
+                <div
+                  key={sch.id}
+                  className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all space-y-3"
+                >
+                  {/* Header info */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md mb-1">
+                        {sch.vesselType}
+                      </span>
+                      <h3 className="font-bold text-slate-900 text-base">{sch.vesselName}</h3>
+                    </div>
 
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                      sch.status === 'on_time' || sch.status === 'scheduled'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : sch.status === 'delayed'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {sch.status === 'on_time' || sch.status === 'scheduled'
-                      ? '🟢 Tepat Waktu'
-                      : sch.status === 'delayed'
-                      ? '🟡 Delay'
-                      : '🔴 Batal'}
-                  </span>
-                </div>
-
-                {/* Route & Times */}
-                <div className="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="font-medium text-slate-700">{sch.originDockName}</div>
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0 mx-2" />
-                    <div className="font-medium text-slate-700 text-right">{sch.destinationDockName}</div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-600 pt-1 border-t border-slate-200/60 font-semibold">
-                    <span className="flex items-center space-x-1">
-                      <Clock className="w-3.5 h-3.5 text-sky-600" />
-                      <span>{sch.departureTime} WITA</span>
-                    </span>
-                    <span className="text-slate-500">
-                      Tiba ~ {sch.estimatedArrivalTime} WITA
-                    </span>
-                  </div>
-                </div>
-
-                {/* Quota Gauge */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="text-slate-600 flex items-center space-x-1">
-                      <Users className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Kapasitas Kursi</span>
-                    </span>
-                    <span className={isFull ? 'text-red-600 font-bold' : 'text-slate-800'}>
-                      {sch.bookedPassengers} / {sch.maxPassengers} kursi terisi
-                    </span>
-                  </div>
-
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-500 ${
-                        percentageUsed >= 90
-                          ? 'bg-red-500'
-                          : percentageUsed >= 70
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                        sch.status === 'on_time' || sch.status === 'scheduled'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : sch.status === 'delayed'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-red-100 text-red-800'
                       }`}
-                      style={{ width: `${percentageUsed}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Price & Action */}
-                <div className="flex items-center justify-between pt-2">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">Tarif Penumpang</span>
-                    <span className="font-extrabold text-slate-900 text-base">
-                      Rp {sch.tariffPassenger.toLocaleString('id-ID')}
+                    >
+                      {sch.status === 'on_time' || sch.status === 'scheduled'
+                        ? '🟢 Tepat Waktu'
+                        : sch.status === 'delayed'
+                        ? '🟡 Delay'
+                        : '🔴 Batal'}
                     </span>
                   </div>
 
-                  <button
-                    disabled={isFull || sch.status === 'cancelled'}
-                    onClick={() => onSelectBooking(sch)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                      isFull || sch.status === 'cancelled'
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-sky-600 hover:bg-sky-700 text-white active:scale-95 shadow-sky-600/20'
-                    }`}
-                  >
-                    {sch.status === 'cancelled'
-                      ? 'Dibatalkan'
-                      : isFull
-                      ? 'Penuh'
-                      : 'Pesan Tiket'}
-                  </button>
+                  {/* Route & Times */}
+                  <div className="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="font-medium text-slate-700">{sch.originDockName}</div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0 mx-2" />
+                      <div className="font-medium text-slate-700 text-right">{sch.destinationDockName}</div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-600 pt-1 border-t border-slate-200/60 font-semibold">
+                      <span className="flex items-center space-x-1">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>{sch.departureTime} WITA</span>
+                      </span>
+                      <span className="text-slate-500">
+                        Tiba ~ {sch.estimatedArrivalTime} WITA
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quota Gauge */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-slate-600 flex items-center space-x-1">
+                        <Users className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Kapasitas Kursi</span>
+                      </span>
+                      <span className={isFull ? 'text-red-600 font-bold' : 'text-slate-800'}>
+                        {sch.bookedPassengers} / {sch.maxPassengers} kursi terisi
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          percentageUsed >= 90
+                            ? 'bg-red-500'
+                            : percentageUsed >= 70
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${percentageUsed}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Price & Action */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block">Tarif Penumpang</span>
+                      <span className="font-extrabold text-slate-900 text-base">
+                        Rp {sch.tariffPassenger.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+
+                    <button
+                      disabled={isFull || sch.status === 'cancelled'}
+                      onClick={() => onSelectBooking(sch)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                        isFull || sch.status === 'cancelled'
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-sky-600 hover:bg-sky-700 text-white active:scale-95 shadow-sky-600/20'
+                      }`}
+                    >
+                      {sch.status === 'cancelled'
+                        ? 'Dibatalkan'
+                        : isFull
+                        ? 'Penuh'
+                        : 'Pesan Tiket'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

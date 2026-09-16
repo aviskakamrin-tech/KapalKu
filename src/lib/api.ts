@@ -15,11 +15,11 @@ import {
 // Storage Keys
 const STORAGE_KEYS = {
   USERS: 'kapalku_local_users',
-  VESSELS: 'kapalku_local_vessels',
-  DOCKS: 'kapalku_local_docks',
-  ROUTES: 'kapalku_local_routes',
-  SCHEDULES: 'kapalku_local_schedules',
-  RESERVATIONS: 'kapalku_local_reservations',
+  VESSELS: 'kapalku_local_vessels_bombana_v8',
+  DOCKS: 'kapalku_local_docks_bombana_v8',
+  ROUTES: 'kapalku_local_routes_bombana_v8',
+  SCHEDULES: 'kapalku_local_schedules_bombana_v8',
+  RESERVATIONS: 'kapalku_local_reservations_bombana_v8',
   WEATHER: 'kapalku_local_weather',
   NOTIFICATIONS: 'kapalku_local_notifications',
   SOS: 'kapalku_local_sos',
@@ -157,9 +157,9 @@ export const api = {
           matchedUser = {
             id: `usr_${Date.now()}`,
             name: derivedName,
-            email: cleanId.includes('@') ? cleanIdLower : `${cleanIdLower.replace(/[^a-z0-9]/g, '') || 'penumpang'}@kapalku.id`,
+            email: cleanId.includes('@') ? cleanIdLower : `${cleanIdLower.replace(/[^a-z0-9]/g, '') || 'pengguna'}@kapalku.id`,
             phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
-            role: 'passenger',
+            role: (data.role as any) || 'passenger',
             avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
           };
 
@@ -167,7 +167,17 @@ export const api = {
           setLocal(STORAGE_KEYS.USERS, localUsers);
         }
 
-        addAuditLog(matchedUser.name, 'USER_LOGIN', `Login sukses: ${matchedUser.name}`);
+        // If role was explicitly specified in request and existing user role differs, update it
+        if (data.role && matchedUser.role !== (data.role as any)) {
+          matchedUser = { ...matchedUser, role: data.role as any };
+          const uIdx = localUsers.findIndex((u) => u.id === matchedUser?.id);
+          if (uIdx !== -1) {
+            localUsers[uIdx] = matchedUser;
+            setLocal(STORAGE_KEYS.USERS, localUsers);
+          }
+        }
+
+        addAuditLog(matchedUser.name, 'USER_LOGIN', `Login sukses (${matchedUser.role}): ${matchedUser.name}`);
 
         return {
           user: matchedUser,
@@ -219,7 +229,7 @@ export const api = {
           name: name.trim(),
           email: email ? email.trim().toLowerCase() : `${phone?.replace(/[^0-9]/g, '') || 'user'}@kapalku.id`,
           phone: phone ? phone.trim() : '0812-0000-0000',
-          role: 'passenger',
+          role: (data.role as any) || 'passenger',
           avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
         };
 
@@ -275,14 +285,16 @@ export const api = {
           capacityPassengers: data.capacityPassengers || 50,
           capacityMotorbikes: data.capacityMotorbikes || 0,
           capacityCars: data.capacityCars || 0,
+          capacityTrucks: data.capacityTrucks || 0,
+          operatingRoutesDescription: data.operatingRoutesDescription || '',
           status: data.status || 'Bertambat',
           operatorId: data.operatorId || 'op_default',
           operatorName: data.operatorName || 'Operator Laut',
           operatorPhone: data.operatorPhone || '0812-0000-0000',
           speedKts: 0,
           headingDeg: 0,
-          currentLat: data.currentLat || -1.2680,
-          currentLng: data.currentLng || 116.8290,
+          currentLat: data.currentLat || -4.6853,
+          currentLng: data.currentLng || 122.0298,
           lastUpdated: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
         };
         localVessels = [newVessel, ...localVessels];
@@ -366,10 +378,58 @@ export const api = {
           status: data.status || 'Aktif',
           province: data.province || 'Kalimantan Timur',
           region: data.region || 'Kalimantan',
+          city: data.city || '',
+          dockRole: data.dockRole || 'both',
+          facilities: data.facilities || [],
+          contactPhone: data.contactPhone || '',
         };
         localDocks = [newDock, ...localDocks];
         setLocal(STORAGE_KEYS.DOCKS, localDocks);
         return newDock;
+      }
+    );
+  },
+
+  updateDock: async (id: string, data: Partial<Dock>): Promise<Dock> => {
+    return safeFetch(
+      `/api/docks/${id}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      },
+      () => {
+        const idx = localDocks.findIndex((d) => d.id === id);
+        if (idx !== -1) {
+          localDocks[idx] = { ...localDocks[idx], ...data };
+          setLocal(STORAGE_KEYS.DOCKS, localDocks);
+          return localDocks[idx];
+        }
+        throw new Error('Dermaga tidak ditemukan');
+      }
+    );
+  },
+
+  deleteDock: async (id: string): Promise<boolean> => {
+    return safeFetch(
+      `/api/docks/${id}`,
+      { method: 'DELETE' },
+      () => {
+        localDocks = localDocks.filter((d) => d.id !== id);
+        setLocal(STORAGE_KEYS.DOCKS, localDocks);
+        return true;
+      }
+    );
+  },
+
+  deleteVessel: async (id: string): Promise<boolean> => {
+    return safeFetch(
+      `/api/vessels/${id}`,
+      { method: 'DELETE' },
+      () => {
+        localVessels = localVessels.filter((v) => v.id !== id);
+        setLocal(STORAGE_KEYS.VESSELS, localVessels);
+        return true;
       }
     );
   },
@@ -393,23 +453,75 @@ export const api = {
       () => {
         const newRoute: RouteItem = {
           id: `route_${Date.now()}`,
-          name: data.name || 'Rute Baru',
+          name: data.name || `${data.originDockName || 'Asal'} ➔ ${data.destinationDockName || 'Tujuan'}`,
           originDockId: data.originDockId || 'dock_1',
           originDockName: data.originDockName || 'Dermaga Asal',
           destinationDockId: data.destinationDockId || 'dock_2',
           destinationDockName: data.destinationDockName || 'Dermaga Tujuan',
           distanceKm: data.distanceKm || 10,
+          distanceMiles: data.distanceMiles !== undefined ? Number(data.distanceMiles) : undefined,
           estimatedDurationMinutes: data.estimatedDurationMinutes || 45,
-          tariffPassenger: data.tariffPassenger || 30000,
-          tariffMotorbike: data.tariffMotorbike || 50000,
-          tariffCar: data.tariffCar || 150000,
+          tariffPassenger: Number(data.tariffPassenger) || 35000,
+          tariffChild: data.tariffChild !== undefined ? Number(data.tariffChild) : undefined,
+          tariffMotorbike: Number(data.tariffMotorbike) || 50000,
+          tariffCar: Number(data.tariffCar) || 150000,
+          tariffTruck: data.tariffTruck !== undefined ? Number(data.tariffTruck) : undefined,
           status: data.status || 'Operasional',
-          region: data.region || 'Kalimantan',
+          region: data.region || 'Sulawesi',
           vesselTypesAvailable: data.vesselTypesAvailable || ['Speedboat', 'Feri'],
+          frequencyText: data.frequencyText || 'Tiap 30-60 menit',
+          description: data.description || 'Jalur pelayaran reguler antar dermaga',
         };
         localRoutes = [newRoute, ...localRoutes];
         setLocal(STORAGE_KEYS.ROUTES, localRoutes);
+        addAuditLog('Admin', 'ROUTE_CREATE', `Membuat rute: ${newRoute.name} (Tarif Penumpang: Rp ${newRoute.tariffPassenger.toLocaleString('id-ID')})`);
         return newRoute;
+      }
+    );
+  },
+
+  updateRoute: async (id: string, data: Partial<RouteItem>): Promise<RouteItem> => {
+    return safeFetch(
+      `/api/routes/${id}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      },
+      () => {
+        const idx = localRoutes.findIndex((r) => r.id === id);
+        if (idx !== -1) {
+          localRoutes[idx] = {
+            ...localRoutes[idx],
+            ...data,
+            tariffPassenger: data.tariffPassenger !== undefined ? Number(data.tariffPassenger) : localRoutes[idx].tariffPassenger,
+            tariffChild: data.tariffChild !== undefined ? Number(data.tariffChild) : localRoutes[idx].tariffChild,
+            tariffMotorbike: data.tariffMotorbike !== undefined ? Number(data.tariffMotorbike) : localRoutes[idx].tariffMotorbike,
+            tariffCar: data.tariffCar !== undefined ? Number(data.tariffCar) : localRoutes[idx].tariffCar,
+            tariffTruck: data.tariffTruck !== undefined ? Number(data.tariffTruck) : localRoutes[idx].tariffTruck,
+            distanceMiles: data.distanceMiles !== undefined ? Number(data.distanceMiles) : localRoutes[idx].distanceMiles,
+          };
+          setLocal(STORAGE_KEYS.ROUTES, localRoutes);
+          addAuditLog('Admin', 'ROUTE_UPDATE', `Update rute/tarif: ${localRoutes[idx].name}`);
+          return localRoutes[idx];
+        }
+        throw new Error('Rute tidak ditemukan');
+      }
+    );
+  },
+
+  deleteRoute: async (id: string): Promise<boolean> => {
+    return safeFetch(
+      `/api/routes/${id}`,
+      { method: 'DELETE' },
+      () => {
+        const target = localRoutes.find((r) => r.id === id);
+        localRoutes = localRoutes.filter((r) => r.id !== id);
+        setLocal(STORAGE_KEYS.ROUTES, localRoutes);
+        if (target) {
+          addAuditLog('Admin', 'ROUTE_DELETE', `Menghapus rute: ${target.name}`);
+        }
+        return true;
       }
     );
   },
@@ -442,17 +554,21 @@ export const api = {
           date: data.date || new Date().toISOString().split('T')[0],
           departureTime: data.departureTime || '08:00',
           estimatedArrivalTime: data.estimatedArrivalTime || '09:00',
-          tariffPassenger: data.tariffPassenger || 35000,
-          tariffMotorbike: data.tariffMotorbike || 50000,
-          tariffCar: data.tariffCar || 150000,
+          tariffPassenger: Number(data.tariffPassenger) || 35000,
+          tariffChild: data.tariffChild !== undefined ? Number(data.tariffChild) : undefined,
+          tariffMotorbike: Number(data.tariffMotorbike) || 50000,
+          tariffCar: Number(data.tariffCar) || 150000,
+          tariffTruck: data.tariffTruck !== undefined ? Number(data.tariffTruck) : undefined,
           status: data.status || 'scheduled',
           bookedPassengers: 0,
           maxPassengers: data.maxPassengers || 60,
           bookedMotorbikes: 0,
           bookedCars: 0,
+          bookedTrucks: 0,
         };
         localSchedules = [newSchedule, ...localSchedules];
         setLocal(STORAGE_KEYS.SCHEDULES, localSchedules);
+        addAuditLog('Admin', 'SCHEDULE_CREATE', `Membuat jadwal: ${newSchedule.vesselName} (${newSchedule.originDockName} → ${newSchedule.destinationDockName})`);
         return newSchedule;
       }
     );
@@ -469,11 +585,36 @@ export const api = {
       () => {
         const idx = localSchedules.findIndex((s) => s.id === id);
         if (idx !== -1) {
-          localSchedules[idx] = { ...localSchedules[idx], ...data };
+          localSchedules[idx] = {
+            ...localSchedules[idx],
+            ...data,
+            tariffPassenger: data.tariffPassenger !== undefined ? Number(data.tariffPassenger) : localSchedules[idx].tariffPassenger,
+            tariffChild: data.tariffChild !== undefined ? Number(data.tariffChild) : localSchedules[idx].tariffChild,
+            tariffMotorbike: data.tariffMotorbike !== undefined ? Number(data.tariffMotorbike) : localSchedules[idx].tariffMotorbike,
+            tariffCar: data.tariffCar !== undefined ? Number(data.tariffCar) : localSchedules[idx].tariffCar,
+            tariffTruck: data.tariffTruck !== undefined ? Number(data.tariffTruck) : localSchedules[idx].tariffTruck,
+          };
           setLocal(STORAGE_KEYS.SCHEDULES, localSchedules);
+          addAuditLog('Admin', 'SCHEDULE_UPDATE', `Update jadwal: ${localSchedules[idx].vesselName}`);
           return localSchedules[idx];
         }
-        throw new Error('Schedule not found');
+        throw new Error('Jadwal tidak ditemukan');
+      }
+    );
+  },
+
+  deleteSchedule: async (id: string): Promise<boolean> => {
+    return safeFetch(
+      `/api/schedules/${id}`,
+      { method: 'DELETE' },
+      () => {
+        const target = localSchedules.find((s) => s.id === id);
+        localSchedules = localSchedules.filter((s) => s.id !== id);
+        setLocal(STORAGE_KEYS.SCHEDULES, localSchedules);
+        if (target) {
+          addAuditLog('Admin', 'SCHEDULE_DELETE', `Menghapus jadwal kapal: ${target.vesselName}`);
+        }
+        return true;
       }
     );
   },
@@ -586,7 +727,12 @@ export const api = {
     );
   },
 
-  validateTicket: async (code: string): Promise<{ valid: boolean; reservation?: Reservation; message: string }> => {
+  validateTicket: async (code: string): Promise<{
+    valid: boolean;
+    status: 'VALID' | 'ALREADY_CHECKED_IN' | 'UNPAID' | 'CANCELLED' | 'NOT_FOUND';
+    reservation?: Reservation;
+    message: string;
+  }> => {
     return safeFetch(
       '/api/reservations/validate',
       {
@@ -596,14 +742,61 @@ export const api = {
       },
       () => {
         localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
-        const clean = code.trim().toUpperCase();
+        const raw = String(code || '').trim().toUpperCase();
+        
+        // Extract KPK-XXXXXX or find by ID / raw string
+        const kpkMatch = raw.match(/KPK-\d+/i) || raw.match(/KPK\d+/i);
+        const searchCode = kpkMatch ? kpkMatch[0].replace('KPK', 'KPK-').replace('--', '-') : raw;
+
         const found = localReservations.find(
-          (r) => r.bookingCode.toUpperCase() === clean
+          (r) =>
+            r.bookingCode.toUpperCase() === searchCode.toUpperCase() ||
+            r.bookingCode.toUpperCase() === raw ||
+            r.id.toUpperCase() === raw ||
+            (r.qrCodeUrl && r.qrCodeUrl.toUpperCase().includes(raw))
         );
+
         if (!found) {
-          return { valid: false, message: 'Tiket tidak ditemukan dalam sistem manifes.' };
+          return {
+            valid: false,
+            status: 'NOT_FOUND',
+            message: `Tiket dengan kode "${raw}" tidak ditemukan dalam sistem manifes pelayaran.`,
+          };
         }
-        return { valid: true, reservation: found, message: 'Tiket terverifikasi sah.' };
+
+        if (found.reservationStatus === 'Dibatalkan' || found.paymentStatus === 'Dibatalkan') {
+          return {
+            valid: false,
+            status: 'CANCELLED',
+            reservation: found,
+            message: `Tiket telah DIBATALKAN: ${found.cancellationReason || 'Permintaan pembatalan'}. Tidak diizinkan naik kapal.`,
+          };
+        }
+
+        if (found.paymentStatus !== 'Lunas') {
+          return {
+            valid: false,
+            status: 'UNPAID',
+            reservation: found,
+            message: `Tiket BELUM LUNAS (${found.paymentStatus}). Harap lakukan pelunasan di loket sebelum boarding.`,
+          };
+        }
+
+        if (found.checkInStatus === 'Sudah Check-In (Boarded)') {
+          return {
+            valid: true,
+            status: 'ALREADY_CHECKED_IN',
+            reservation: found,
+            message: `Tiket SUDAH PERNAH CHECK-IN sebelumnya pada ${found.checkInTime || found.scannedAt || '-'} oleh ${found.scannedBy || 'Petugas Gate'}.`,
+          };
+        }
+
+        return {
+          valid: true,
+          status: 'VALID',
+          reservation: found,
+          message: `Tiket SAH & VALID untuk boarding kapal ${found.vesselName} (${found.originDockName} ➔ ${found.destinationDockName}).`,
+        };
       }
     );
   },
@@ -618,17 +811,41 @@ export const api = {
       },
       () => {
         localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
-        const clean = code.trim().toUpperCase();
+        const raw = String(code || '').trim().toUpperCase();
+        const kpkMatch = raw.match(/KPK-\d+/i) || raw.match(/KPK\d+/i);
+        const searchCode = kpkMatch ? kpkMatch[0].replace('KPK', 'KPK-').replace('--', '-') : raw;
+
         const idx = localReservations.findIndex(
-          (r) => r.bookingCode.toUpperCase() === clean
+          (r) =>
+            r.bookingCode.toUpperCase() === searchCode.toUpperCase() ||
+            r.bookingCode.toUpperCase() === raw ||
+            r.id.toUpperCase() === raw
         );
+
         if (idx === -1) {
-          throw new Error('Tiket tidak ditemukan');
+          throw new Error('Tiket tidak ditemukan dalam manifes');
         }
+
+        const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const nowFull = new Date().toLocaleDateString('id-ID') + ' ' + nowTime;
+
         localReservations[idx].checkInStatus = 'Sudah Check-In (Boarded)';
-        localReservations[idx].checkInTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        localReservations[idx].checkInTime = nowTime;
+        localReservations[idx].scannedAt = nowFull;
+        localReservations[idx].scannedBy = officerName || 'Petugas Gate Dermaga';
         setLocal(STORAGE_KEYS.RESERVATIONS, localReservations);
-        return { success: true, reservation: localReservations[idx], message: 'Check-in berhasil, silakan menuju dermaga.' };
+
+        addAuditLog(
+          officerName || 'Petugas Gate',
+          'TICKET_BOARDING',
+          `Check-in / Boarding disetujui untuk ${localReservations[idx].bookingCode} (${localReservations[idx].userName} - ${localReservations[idx].vesselName})`
+        );
+
+        return {
+          success: true,
+          reservation: localReservations[idx],
+          message: `Berhasil Check-In! Penumpang ${localReservations[idx].userName} dipersilakan naik ke kapal ${localReservations[idx].vesselName}.`,
+        };
       }
     );
   },
