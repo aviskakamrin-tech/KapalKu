@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, Clock, ArrowRight, Anchor, Users, Navigation, UserCheck } from 'lucide-react';
+import { Search, MapPin, Calendar, Compass, Map, Ticket, CloudSun, Clock, ArrowRight, Anchor, Users, Navigation, UserCheck, Share2 } from 'lucide-react';
 import { Dock, Schedule, WeatherReport, Reservation, User } from '../../types';
 
 interface PassengerHomeProps {
@@ -12,6 +12,7 @@ interface PassengerHomeProps {
   onSearchSchedules: (originId: string, destinationId: string, date: string) => void;
   onSelectBooking: (schedule: Schedule) => void;
   onTrackVessel?: (vesselName: string) => void;
+  onOpenRoleLinks?: () => void;
 }
 
 export const PassengerHome: React.FC<PassengerHomeProps> = ({
@@ -24,6 +25,7 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
   onSearchSchedules,
   onSelectBooking,
   onTrackVessel,
+  onOpenRoleLinks,
 }) => {
   const [originDockId, setOriginDockId] = useState<string>('');
   const [destinationDockId, setDestinationDockId] = useState<string>('');
@@ -98,9 +100,22 @@ export const PassengerHome: React.FC<PassengerHomeProps> = ({
 
         {/* Top Header Row with Slogan & User Name on the Right */}
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/15 pb-4 mb-4">
-          <div className="inline-flex items-center space-x-2 bg-sky-400/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-sky-200 border border-sky-300/30">
-            <Anchor className="w-3.5 h-3.5 text-sky-300" />
-            <span>Platform Transportasi Laut & Sungai Lokal</span>
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            <div className="inline-flex items-center space-x-2 bg-sky-400/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-sky-200 border border-sky-300/30">
+              <Anchor className="w-3.5 h-3.5 text-sky-300" />
+              <span>Platform Transportasi Laut & Sungai Lokal</span>
+            </div>
+            {onOpenRoleLinks && currentUser?.role === 'admin' && (
+              <button
+                type="button"
+                onClick={onOpenRoleLinks}
+                className="inline-flex items-center space-x-1.5 bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-full text-xs font-semibold text-white border border-white/20 cursor-pointer transition-all"
+                title="Lihat Link Akses Role Terpisah"
+              >
+                <Share2 className="w-3 h-3 text-sky-300" />
+                <span>Link Akses 3 Role</span>
+              </button>
+            )}
           </div>
 
           {/* User Name in Top Right of Beranda */}

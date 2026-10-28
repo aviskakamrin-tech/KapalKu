@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Anchor, Bell, LogIn, LogOut, User as UserIcon, ChevronDown, ShieldCheck } from 'lucide-react';
-import { User } from '../types';
+import { Anchor, Bell, LogIn, LogOut, User as UserIcon, ChevronDown, ShieldCheck, Share2, Database, Settings } from 'lucide-react';
+import { User, Role } from '../types';
 
 interface NavbarProps {
   unreadCount: number;
@@ -9,6 +9,11 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onLogout: () => void;
   onNavigateTab?: (tab: string) => void;
+  onOpenRoleLinks?: () => void;
+  onOpenSupabaseModal?: () => void;
+  onOpenAccountSettings?: () => void;
+  portalRole?: Role;
+  isFixedPortal?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,6 +23,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLogin,
   onLogout,
   onNavigateTab,
+  onOpenRoleLinks,
+  onOpenSupabaseModal,
+  onOpenAccountSettings,
+  portalRole,
+  isFixedPortal = false,
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -32,6 +42,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleLogoClick = () => {
+    if (!onNavigateTab) return;
+    if (portalRole === 'admin') onNavigateTab('admin_panel');
+    else if (portalRole === 'officer') onNavigateTab('officer_scanner');
+    else onNavigateTab('beranda');
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#0F2C59] text-white shadow-md border-b border-sky-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -39,26 +56,76 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Brand */}
           <div
             className="flex items-center space-x-3 cursor-pointer select-none"
-            onClick={() => onNavigateTab && onNavigateTab('beranda')}
+            onClick={handleLogoClick}
           >
-            <div className="bg-sky-500 p-2 rounded-xl text-white shadow-lg shadow-sky-500/30 flex items-center justify-center">
+            <div className={`p-2 rounded-xl text-white shadow-lg flex items-center justify-center ${
+              portalRole === 'admin'
+                ? 'bg-indigo-600 shadow-indigo-600/40'
+                : portalRole === 'officer'
+                ? 'bg-cyan-600 shadow-cyan-600/40'
+                : 'bg-sky-500 shadow-sky-500/30'
+            }`}>
               <Anchor className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1.5">
                 <span className="font-bold text-xl tracking-tight text-white">KapalKu</span>
-                <span className="text-xs bg-sky-500/30 text-sky-200 px-1.5 py-0.5 rounded font-mono font-medium">
-                  ID Maritime
-                </span>
+                {portalRole === 'admin' ? (
+                  <span className="text-[10px] bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                    PORTAL ADMIN
+                  </span>
+                ) : portalRole === 'officer' ? (
+                  <span className="text-[10px] bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                    PORTAL PETUGAS
+                  </span>
+                ) : portalRole === 'passenger' ? (
+                  <span className="text-[10px] bg-sky-500/30 border border-sky-400/40 text-sky-200 px-1.5 py-0.5 rounded font-mono font-bold">
+                    PENUMPANG
+                  </span>
+                ) : (
+                  <span className="text-xs bg-sky-500/30 text-sky-200 px-1.5 py-0.5 rounded font-mono font-medium">
+                    ID Maritime
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-sky-200 hidden sm:block font-medium">
-                Informasi Laut, Lebih Mudah dan Aman.
+                {portalRole === 'admin'
+                  ? 'Manajemen Tarif, Rute, Dermaga & Manifes Pelayaran'
+                  : portalRole === 'officer'
+                  ? 'Pemindai Barcode Gate & Validasi Check-In Manifes'
+                  : 'Informasi Laut, Jadwal & Reservasi Tiket Terpadu'}
               </p>
             </div>
           </div>
 
           {/* Right Actions: Notifications & User Profile / Login */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Share / Role Links Button - only in admin portal */}
+            {onOpenRoleLinks && portalRole === 'admin' && (
+              <button
+                onClick={onOpenRoleLinks}
+                className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/30 text-sky-200 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                title="Tautan Akses Terpisah per Role (Admin, Petugas, Pengguna)"
+              >
+                <Share2 className="w-3.5 h-3.5 text-sky-400" />
+                <span>Link 3 Role</span>
+              </button>
+            )}
+
+            {/* Supabase Database Button - only in admin portal */}
+            {onOpenSupabaseModal && portalRole === 'admin' && (
+              <button
+                onClick={onOpenSupabaseModal}
+                className="flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/30 text-emerald-200 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                title="Status & Sinkronisasi Database Supabase PostgreSQL"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xs:inline sm:inline">Supabase DB</span>
+                <span className="inline xs:hidden sm:hidden">Supabase</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              </button>
+            )}
+
             {/* Notification Bell */}
             <button
               onClick={onOpenNotifications}

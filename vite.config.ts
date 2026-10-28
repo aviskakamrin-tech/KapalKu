@@ -3,8 +3,20 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const roleFromMode =
+    mode === 'admin'
+      ? 'admin'
+      : mode === 'officer' || mode === 'petugas'
+      ? 'officer'
+      : mode === 'passenger' || mode === 'penumpang' || mode === 'pengguna'
+      ? 'passenger'
+      : process.env.VITE_APP_ROLE || '';
+
   return {
+    define: {
+      'import.meta.env.VITE_APP_ROLE': JSON.stringify(roleFromMode),
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

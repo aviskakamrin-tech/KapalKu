@@ -28,6 +28,7 @@ import {
   Info,
   ExternalLink,
   Lock,
+  Share2,
 } from 'lucide-react';
 
 interface OfficerScannerPageProps {
@@ -35,6 +36,7 @@ interface OfficerScannerPageProps {
   reservations: Reservation[];
   schedules: Schedule[];
   onRefreshData: () => void;
+  onOpenRoleLinks?: () => void;
 }
 
 export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
@@ -42,6 +44,7 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
   reservations,
   schedules,
   onRefreshData,
+  onOpenRoleLinks,
 }) => {
   const [scanInput, setScanInput] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -450,13 +453,27 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
             </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md border border-white/15 p-3.5 rounded-2xl flex items-center space-x-3 shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500 text-white flex items-center justify-center font-bold text-base shadow-md">
-              OFF
-            </div>
-            <div>
-              <div className="text-xs font-bold text-white">{currentUser?.name || 'Petugas Jaga'}</div>
-              <div className="text-[10px] text-cyan-200 font-mono">Status: On-Duty (Gate Boarding)</div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+            {onOpenRoleLinks && (
+              <button
+                type="button"
+                onClick={onOpenRoleLinks}
+                className="px-3 py-2 bg-cyan-500/30 hover:bg-cyan-500/50 border border-cyan-400/40 text-cyan-100 hover:text-white rounded-2xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer shadow-sm"
+                title="Lihat Link Akses Role Terpisah"
+              >
+                <Share2 className="w-4 h-4 text-cyan-300" />
+                <span>Link Akses 3 Role</span>
+              </button>
+            )}
+
+            <div className="bg-white/10 backdrop-blur-md border border-white/15 p-3.5 rounded-2xl flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-500 text-white flex items-center justify-center font-bold text-base shadow-md">
+                OFF
+              </div>
+              <div>
+                <div className="text-xs font-bold text-white">{currentUser?.name || 'Petugas Jaga'}</div>
+                <div className="text-[10px] text-cyan-200 font-mono">Status: On-Duty (Gate Boarding)</div>
+              </div>
             </div>
           </div>
         </div>

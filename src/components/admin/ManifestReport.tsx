@@ -42,6 +42,7 @@ export const ManifestReport: React.FC<ManifestReportProps> = ({
       statusFilter === 'ALL' ||
       (statusFilter === 'LUNAS' && r.paymentStatus === 'Lunas') ||
       (statusFilter === 'BOARDED' && r.checkInStatus === 'Sudah Check-In (Boarded)') ||
+      (statusFilter === 'REFUND' && !!r.refundStatus) ||
       (statusFilter === 'BATAL' && r.reservationStatus === 'Dibatalkan');
 
     const matchDate = !dateFilter || r.travelDate === dateFilter;
@@ -121,6 +122,7 @@ export const ManifestReport: React.FC<ManifestReportProps> = ({
             <option value="ALL">Semua Status</option>
             <option value="LUNAS">Sudah Lunas</option>
             <option value="BOARDED">Sudah Naik (Boarded)</option>
+            <option value="REFUND">Pengajuan Refund</option>
             <option value="BATAL">Dibatalkan</option>
           </select>
 

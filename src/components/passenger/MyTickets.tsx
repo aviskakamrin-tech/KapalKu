@@ -46,8 +46,12 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
   const [ticketToCancel, setTicketToCancel] = useState<Reservation | null>(null);
   const [ticketToPay, setTicketToPay] = useState<Reservation | null>(null);
 
-  // Cancellation State
+  // Cancellation & Refund State
   const [cancelReason, setCancelReason] = useState<string>('Perubahan Jadwal Perjalanan Pribadi');
+  const [cancelAdditionalNote, setCancelAdditionalNote] = useState<string>('');
+  const [refundBank, setRefundBank] = useState<string>('Bank BRI');
+  const [refundAccountNum, setRefundAccountNum] = useState<string>('');
+  const [refundAccountHolder, setRefundAccountHolder] = useState<string>('');
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
   const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
 
@@ -63,7 +67,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
   const [localReservations, setLocalReservations] = useState<Reservation[]>(reservations);
 
   // Filter tab for tickets
-  const [filterTab, setFilterTab] = useState<'all' | 'active' | 'unpaid' | 'cancelled'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'active' | 'unpaid' | 'refund' | 'cancelled'>('all');
 
   React.useEffect(() => {
     setLocalReservations(reservations);
@@ -98,21 +102,61 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
     }
   };
 
+  const handleOpenCancelModal = (ticket: Reservation) => {
+    setTicketToCancel(ticket);
+    setRefundAccountHolder(ticket.userName || '');
+    setRefundAccountNum('');
+    setCancelReason('Perubahan Jadwal Perjalanan Pribadi');
+    setCancelAdditionalNote('');
+    setRefundBank('Bank BRI');
+  };
+
   const handleConfirmCancelTicket = async () => {
     if (!ticketToCancel) return;
+    const isPaid = ticketToCancel.paymentStatus === 'Lunas';
+
+    if (isPaid) {
+      if (!refundAccountNum.trim()) {
+        alert('Harap masukkan nomor rekening bank / nomor e-wallet tujuan pengembalian dana.');
+        return;
+      }
+      if (!refundAccountHolder.trim()) {
+        alert('Harap masukkan nama lengkap pemilik rekening sesuai buku tabungan.');
+        return;
+      }
+    }
+
     setIsCancelling(true);
     try {
-      const updated = await api.cancelReservation(ticketToCancel.id, cancelReason);
+      const fullReason = cancelAdditionalNote.trim()
+        ? `${cancelReason}: ${cancelAdditionalNote.trim()}`
+        : cancelReason;
+
+      let updated: Reservation;
+      if (isPaid) {
+        updated = await api.requestTicketRefund(ticketToCancel.id, {
+          reason: fullReason,
+          bankName: refundBank,
+          accountNumber: refundAccountNum.trim(),
+          accountHolder: refundAccountHolder.trim(),
+        });
+        setCancelSuccessMsg(
+          `Pengajuan refund dana tiket ${ticketToCancel.bookingCode} (Rp ${ticketToCancel.totalPrice.toLocaleString('id-ID')}) berhasil dikirim! Menunggu persetujuan Admin.`
+        );
+      } else {
+        updated = await api.cancelReservation(ticketToCancel.id, fullReason);
+        setCancelSuccessMsg(`Tiket ${ticketToCancel.bookingCode} berhasil dibatalkan.`);
+      }
+
       setLocalReservations((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       if (selectedTicket && selectedTicket.id === updated.id) {
         setSelectedTicket(updated);
       }
-      setCancelSuccessMsg(`Tiket ${ticketToCancel.bookingCode} berhasil dibatalkan.`);
       setTicketToCancel(null);
       if (onRefreshReservations) onRefreshReservations();
-      setTimeout(() => setCancelSuccessMsg(null), 4000);
+      setTimeout(() => setCancelSuccessMsg(null), 6000);
     } catch (err: any) {
-      alert(err.message || 'Gagal membatalkan tiket');
+      alert(err.message || 'Gagal memproses pembatalan/refund');
     } finally {
       setIsCancelling(false);
     }
@@ -154,6 +198,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
   const filteredTickets = localReservations.filter((t) => {
     if (filterTab === 'active') return t.paymentStatus === 'Lunas' && t.reservationStatus !== 'Dibatalkan';
     if (filterTab === 'unpaid') return t.paymentStatus === 'Menunggu Pembayaran' && t.reservationStatus !== 'Dibatalkan';
+    if (filterTab === 'refund') return t.refundStatus === 'Diajukan' || t.refundStatus === 'Disetujui' || t.refundStatus === 'Ditolak';
     if (filterTab === 'cancelled') return t.reservationStatus === 'Dibatalkan';
     return true;
   });
@@ -168,7 +213,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
             <span>Tiket & E-Boarding Pass Saya</span>
           </h2>
           <p className="text-xs text-sky-100 max-w-xl leading-relaxed">
-            Kelola e-ticket pelayaran Anda, lakukan pelunasan pembayaran, batalkan reservasi, atau scan QR Code di gerbang masuk dermaga kapal.
+            Kelola e-ticket pelayaran Anda, lakukan pelunasan pembayaran, batalkan reservasi, ajukan pengembalian dana (refund), atau scan QR Code di gerbang masuk dermaga kapal.
           </p>
         </div>
 
@@ -196,6 +241,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
           { id: 'all', label: `Semua Tiket (${localReservations.length})` },
           { id: 'active', label: `🟢 Tiket Lunas & Aktif (${localReservations.filter((r) => r.paymentStatus === 'Lunas' && r.reservationStatus !== 'Dibatalkan').length})` },
           { id: 'unpaid', label: `🟡 Menunggu Bayar (${localReservations.filter((r) => r.paymentStatus === 'Menunggu Pembayaran' && r.reservationStatus !== 'Dibatalkan').length})` },
+          { id: 'refund', label: `💸 Refund & Batal (${localReservations.filter((r) => r.refundStatus).length})` },
           { id: 'cancelled', label: `🔴 Dibatalkan (${localReservations.filter((r) => r.reservationStatus === 'Dibatalkan').length})` },
         ].map((tab) => (
           <button
@@ -267,7 +313,13 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                       </span>
                       <span
                         className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
-                          isDibatalkan
+                          ticket.refundStatus === 'Diajukan'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : ticket.refundStatus === 'Disetujui'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            : ticket.refundStatus === 'Ditolak'
+                            ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                            : isDibatalkan
                             ? 'bg-red-100 text-red-800'
                             : !isLunas
                             ? 'bg-amber-100 text-amber-800'
@@ -276,7 +328,13 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                             : 'bg-emerald-100 text-emerald-800'
                         }`}
                       >
-                        {isDibatalkan
+                        {ticket.refundStatus === 'Diajukan'
+                          ? '🟡 Refund Menunggu Persetujuan'
+                          : ticket.refundStatus === 'Disetujui'
+                          ? '🟢 Refund Selesai (Ditransfer)'
+                          : ticket.refundStatus === 'Ditolak'
+                          ? '🔴 Refund Ditolak'
+                          : isDibatalkan
                           ? '🔴 Dibatalkan'
                           : !isLunas
                           ? '🟡 Menunggu Pembayaran'
@@ -328,6 +386,52 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                   </div>
                 </div>
 
+                {/* Status Refund Uang Penumpang */}
+                {ticket.refundStatus === 'Diajukan' && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center space-x-1.5 font-bold text-amber-900">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                      <span>Pengajuan Refund Uang: Menunggu Persetujuan Admin</span>
+                    </div>
+                    <div className="text-[11px] text-amber-900 bg-white/80 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                      <div>Nominal Pengembalian: <strong className="text-emerald-700 font-bold">Rp {(ticket.refundDetails?.refundAmount || ticket.totalPrice).toLocaleString('id-ID')}</strong></div>
+                      <div>Rekening Penerima: <strong>{ticket.refundDetails?.bankName}</strong> ({ticket.refundDetails?.accountNumber}) a.n <strong>{ticket.refundDetails?.accountHolder}</strong></div>
+                      <div className="text-slate-500">Waktu Pengajuan: {ticket.refundDetails?.requestedAt || '-'}</div>
+                    </div>
+                  </div>
+                )}
+
+                {ticket.refundStatus === 'Disetujui' && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-950 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center space-x-1.5 font-bold text-emerald-900">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Refund Uang Disetujui & Telah Ditransfer!</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-950 bg-white/90 p-2.5 rounded-xl border border-emerald-200 space-y-1">
+                      <div>Dana Dikembalikan: <strong className="text-emerald-700 font-bold">Rp {(ticket.refundDetails?.refundAmount || ticket.totalPrice).toLocaleString('id-ID')}</strong></div>
+                      <div>Ke Rekening: <strong>{ticket.refundDetails?.bankName}</strong> ({ticket.refundDetails?.accountNumber}) a.n {ticket.refundDetails?.accountHolder}</div>
+                      {ticket.refundDetails?.transferProofRef && (
+                        <div>No. Ref Transfer Bank: <strong className="font-mono text-emerald-800">{ticket.refundDetails.transferProofRef}</strong></div>
+                      )}
+                      {ticket.refundDetails?.adminNote && (
+                        <div className="text-slate-600 italic">"{ticket.refundDetails.adminNote}"</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {ticket.refundStatus === 'Ditolak' && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-950 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center space-x-1.5 font-bold text-rose-900">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Pengajuan Refund Uang Ditolak</span>
+                    </div>
+                    <div className="text-[11px] text-rose-950 bg-white/90 p-2.5 rounded-xl border border-rose-200">
+                      <span>Alasan: <strong>{ticket.refundDetails?.adminNote || 'Tidak memenuhi ketentuan refund.'}</strong></span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Unpaid Warning / Cancellation Note */}
                 {!isLunas && !isDibatalkan && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1">
@@ -341,7 +445,7 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                   </div>
                 )}
 
-                {isDibatalkan && (
+                {isDibatalkan && !ticket.refundStatus && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 space-y-0.5">
                     <span className="font-bold block">Tiket Tidak Berlaku (Dibatalkan)</span>
                     <span className="text-[11px] text-red-700 block">
@@ -355,11 +459,11 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                   {!isDibatalkan && (
                     <button
                       type="button"
-                      onClick={() => setTicketToCancel(ticket)}
+                      onClick={() => handleOpenCancelModal(ticket)}
                       className="px-3 py-2 text-red-600 hover:bg-red-50 text-xs font-bold rounded-xl border border-red-200 flex items-center space-x-1 transition-all cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Batalkan Tiket</span>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{isLunas ? 'Batalkan & Refund' : 'Batalkan Tiket'}</span>
                     </button>
                   )}
 
@@ -450,13 +554,49 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
                 </div>
               </div>
 
-              {/* QR Code Center */}
+              {/* QR Code Center or Refund Notice */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-2 relative">
                 {selectedTicket.reservationStatus === 'Dibatalkan' ? (
-                  <div className="py-6 space-y-2">
-                    <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
+                  <div className="py-4 space-y-2">
+                    <AlertTriangle className="w-10 h-10 text-red-500 mx-auto" />
                     <span className="font-black text-red-700 text-sm block">TIKET INI TELAH DIBATALKAN</span>
-                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    
+                    {selectedTicket.refundStatus === 'Diajukan' && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 text-left space-y-1">
+                        <div className="font-bold text-amber-900 flex items-center space-x-1.5">
+                          <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                          <span>Pengajuan Refund Uang: Menunggu Persetujuan Admin</span>
+                        </div>
+                        <div>Nominal: <strong className="text-emerald-700">Rp {(selectedTicket.refundDetails?.refundAmount || selectedTicket.totalPrice).toLocaleString('id-ID')}</strong></div>
+                        <div>Rekening: <strong>{selectedTicket.refundDetails?.bankName}</strong> ({selectedTicket.refundDetails?.accountNumber}) a.n {selectedTicket.refundDetails?.accountHolder}</div>
+                      </div>
+                    )}
+
+                    {selectedTicket.refundStatus === 'Disetujui' && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-950 text-left space-y-1">
+                        <div className="font-bold text-emerald-900 flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Refund Disetujui & Telah Ditransfer</span>
+                        </div>
+                        <div>Nominal: <strong className="text-emerald-700">Rp {(selectedTicket.refundDetails?.refundAmount || selectedTicket.totalPrice).toLocaleString('id-ID')}</strong></div>
+                        <div>Rekening: <strong>{selectedTicket.refundDetails?.bankName}</strong> ({selectedTicket.refundDetails?.accountNumber}) a.n {selectedTicket.refundDetails?.accountHolder}</div>
+                        {selectedTicket.refundDetails?.transferProofRef && (
+                          <div>No. Ref Transfer: <strong className="font-mono text-emerald-800">{selectedTicket.refundDetails.transferProofRef}</strong></div>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedTicket.refundStatus === 'Ditolak' && (
+                      <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-950 text-left space-y-1">
+                        <div className="font-bold text-rose-900 flex items-center space-x-1.5">
+                          <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          <span>Pengajuan Refund Ditolak</span>
+                        </div>
+                        <div>Alasan: <strong>{selectedTicket.refundDetails?.adminNote || 'Tidak memenuhi ketentuan refund.'}</strong></div>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
                       QR Code dinonaktifkan dan tidak dapat digunakan untuk memvalidasi masuk kapal di gate dermaga.
                     </p>
                   </div>
@@ -586,69 +726,224 @@ export const MyTickets: React.FC<MyTicketsProps> = ({
         </div>
       )}
 
-      {/* ================= MODAL BATALKAN PEMESANAN TIKET ================= */}
+      {/* ================= MODAL BATALKAN PEMESANAN TIKET & PENGAJUAN REFUND ================= */}
       {ticketToCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200">
-            <div className="bg-red-600 p-4 text-white flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="w-5 h-5" />
-                <span className="font-extrabold text-sm">Batalkan Pemesanan Tiket</span>
-              </div>
-              <button
-                onClick={() => setTicketToCancel(null)}
-                className="p-1 rounded-lg text-red-200 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="space-y-1">
-                <span className="text-xs text-slate-500">Anda akan membatalkan tiket berikut:</span>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
-                  <div className="font-bold text-slate-900">{ticketToCancel.vesselName}</div>
-                  <div className="text-slate-600">{ticketToCancel.originDockName} ➔ {ticketToCancel.destinationDockName}</div>
-                  <div className="text-slate-500">Kode: <strong className="font-mono text-sky-700">{ticketToCancel.bookingCode}</strong> • Tanggal: {ticketToCancel.travelDate}</div>
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+            {ticketToCancel.paymentStatus === 'Lunas' ? (
+              /* Modal Khusus Tiket Lunas: Pengajuan Refund Uang */
+              <>
+                <div className="bg-gradient-to-r from-rose-700 via-rose-800 to-indigo-900 p-5 text-white flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 bg-white/20 rounded-xl">
+                      <RotateCcw className="w-5 h-5 text-rose-200" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base">Pembatalan Tiket & Pengajuan Refund Uang</h3>
+                      <p className="text-xs text-rose-100">Pengembalian dana 100% ke rekening bank / e-wallet Anda.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTicketToCancel(null)}
+                    className="p-1 rounded-xl text-rose-200 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Pilih Alasan Pembatalan:</label>
-                <select
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none"
-                >
-                  <option value="Perubahan Jadwal Perjalanan Pribadi">Perubahan Jadwal Perjalanan Pribadi</option>
-                  <option value="Kondisi Cuaca / Alasan Keamanan">Kondisi Cuaca / Alasan Keamanan</option>
-                  <option value="Salah Memilih Rute / Kapal">Salah Memilih Rute / Kapal</option>
-                  <option value="Keperluan Darurat Mendesak">Keperluan Darurat Mendesak</option>
-                </select>
-              </div>
+                <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                  {/* Ringkasan Tiket & Nominal Refund */}
+                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                    <div className="flex items-center justify-between text-xs border-b border-emerald-200/80 pb-2">
+                      <span className="font-bold text-emerald-950">Kode Tiket: {ticketToCancel.bookingCode}</span>
+                      <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                        LUNAS TERVERIFIKASI
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-700 space-y-0.5">
+                      <div className="font-bold text-slate-900">{ticketToCancel.vesselName}</div>
+                      <div className="text-slate-600">{ticketToCancel.originDockName} ➔ {ticketToCancel.destinationDockName}</div>
+                      <div className="text-slate-500">Jadwal: {ticketToCancel.travelDate} ({ticketToCancel.departureTime}) • {ticketToCancel.passengersCount} Penumpang</div>
+                    </div>
+                    <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-600">Nominal Refund yang Dikembalikan:</span>
+                      <span className="text-lg font-black text-emerald-700">
+                        Rp {ticketToCancel.totalPrice.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
-                ℹ️ <strong>Kebijakan Pengembalian (Refund):</strong> Kuota kursi akan segera dikembalikan ke jadwal umum. Pengembalian dana akan diproses secara otomatis sesuai metode pembayaran asal.
-              </div>
+                  {/* Alasan Pembatalan */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Pilih Alasan Pembatalan Tiket:</label>
+                    <select
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-rose-500 outline-none"
+                    >
+                      <option value="Perubahan Jadwal Perjalanan Pribadi">Perubahan Jadwal Perjalanan Pribadi</option>
+                      <option value="Keperluan Medis / Kondisi Darurat">Keperluan Medis / Kondisi Darurat</option>
+                      <option value="Kendala Transportasi Menuju Dermaga">Kendala Transportasi Menuju Dermaga</option>
+                      <option value="Peringatan Cuaca Buruk / Gelombang Tinggi">Peringatan Cuaca Buruk / Gelombang Tinggi</option>
+                      <option value="Salah Memilih Jadwal / Kapal">Salah Memilih Jadwal / Kapal</option>
+                      <option value="Lainnya">Alasan Lainnya</option>
+                    </select>
+                    <textarea
+                      value={cancelAdditionalNote}
+                      onChange={(e) => setCancelAdditionalNote(e.target.value)}
+                      rows={2}
+                      placeholder="Catatan tambahan (opsional)..."
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 outline-none mt-1"
+                    />
+                  </div>
 
-              <div className="pt-2 flex justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTicketToCancel(null)}
-                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-                >
-                  Batal, Tetap Simpan
-                </button>
-                <button
-                  type="button"
-                  disabled={isCancelling}
-                  onClick={handleConfirmCancelTicket}
-                  className="py-2.5 px-5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-md flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
-                >
-                  {isCancelling ? 'Membatalkan...' : 'Ya, Batalkan Tiket Ini'}
-                </button>
-              </div>
-            </div>
+                  {/* Form Data Rekening Refund */}
+                  <div className="p-4 bg-indigo-50/70 rounded-2xl border border-indigo-200 space-y-3">
+                    <div className="flex items-center space-x-2 text-indigo-950 font-bold text-xs">
+                      <Building2 className="w-4 h-4 text-indigo-600" />
+                      <span>Data Rekening Tujuan Pengembalian Uang (Refund)</span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Pilih Bank / E-Wallet Penerima:
+                        </label>
+                        <select
+                          value={refundBank}
+                          onChange={(e) => setRefundBank(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                          <option value="Bank BRI">Bank BRI (PT Bank Rakyat Indonesia)</option>
+                          <option value="Bank BCA">Bank BCA (Bank Central Asia)</option>
+                          <option value="Bank Mandiri">Bank Mandiri</option>
+                          <option value="Bank BNI">Bank BNI (Bank Negara Indonesia)</option>
+                          <option value="Bank BSI">Bank Syariah Indonesia (BSI)</option>
+                          <option value="Bank Sultra">Bank Sultra (BPD Sulawesi Tenggara)</option>
+                          <option value="DANA">DANA E-Wallet</option>
+                          <option value="GoPay">GoPay (Gojek)</option>
+                          <option value="OVO">OVO E-Wallet</option>
+                          <option value="ShopeePay">ShopeePay</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Nomor Rekening / Nomor Handphone E-Wallet:
+                        </label>
+                        <input
+                          type="text"
+                          value={refundAccountNum}
+                          onChange={(e) => setRefundAccountNum(e.target.value)}
+                          placeholder="Contoh: 0192019283019 atau 08123456789"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Nama Pemilik Rekening / Akun:
+                        </label>
+                        <input
+                          type="text"
+                          value={refundAccountHolder}
+                          onChange={(e) => setRefundAccountHolder(e.target.value)}
+                          placeholder="Harus sesuai buku rekening / identitas diri"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                    ℹ️ <strong>Alur Refund:</strong> Permintaan pembatalan dan transfer refund akan ditinjau dan disetujui oleh <strong>Admin Pelabuhan</strong>. Setelah disetujui, dana akan langsung dikirimkan ke rekening yang Anda daftarkan di atas beserta nomor referensi transfer resmi.
+                  </div>
+
+                  <div className="pt-2 flex justify-between gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setTicketToCancel(null)}
+                      className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Batal, Simpan Tiket
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCancelling}
+                      onClick={handleConfirmCancelTicket}
+                      className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl shadow-md flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer active:scale-95"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>{isCancelling ? 'Mengirim Permintaan...' : `Kirim Pengajuan Refund (Rp ${ticketToCancel.totalPrice.toLocaleString('id-ID')})`}</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Modal Tiket Belum Dibayar: Konfirmasi Pembatalan Biasa */
+              <>
+                <div className="bg-red-600 p-4 text-white flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    <span className="font-extrabold text-sm">Batalkan Pemesanan Tiket</span>
+                  </div>
+                  <button
+                    onClick={() => setTicketToCancel(null)}
+                    className="p-1 rounded-lg text-red-200 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-slate-500">Anda akan membatalkan pemesanan yang belum dibayar ini:</span>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
+                      <div className="font-bold text-slate-900">{ticketToCancel.vesselName}</div>
+                      <div className="text-slate-600">{ticketToCancel.originDockName} ➔ {ticketToCancel.destinationDockName}</div>
+                      <div className="text-slate-500">Kode: <strong className="font-mono text-sky-700">{ticketToCancel.bookingCode}</strong> • Tanggal: {ticketToCancel.travelDate}</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Pilih Alasan Pembatalan:</label>
+                    <select
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none"
+                    >
+                      <option value="Perubahan Jadwal Perjalanan Pribadi">Perubahan Jadwal Perjalanan Pribadi</option>
+                      <option value="Salah Memilih Rute / Kapal">Salah Memilih Rute / Kapal</option>
+                      <option value="Keperluan Darurat Mendesak">Keperluan Darurat Mendesak</option>
+                    </select>
+                  </div>
+
+                  <div className="p-3 bg-slate-100 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+                    ℹ️ Tiket ini berstatus <strong>Menunggu Pembayaran</strong> (belum ada dana yang dibayarkan). Pembatalan akan segera mengembalikan kuota kursi kapal ke sistem tanpa proses transfer pengembalian dana.
+                  </div>
+
+                  <div className="pt-2 flex justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTicketToCancel(null)}
+                      className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      Batal, Tetap Simpan
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCancelling}
+                      onClick={handleConfirmCancelTicket}
+                      className="py-2.5 px-5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-md flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isCancelling ? 'Membatalkan...' : 'Ya, Batalkan Tiket Ini'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -335,6 +335,50 @@ export const VesselDockManager: React.FC<VesselDockManagerProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
             <h3 className="font-bold text-base text-slate-900">Daftarkan Kapal Baru</h3>
+
+            {/* Quick Templates from Pelabuhan Ferry Kampung Baru */}
+            <div className="bg-sky-50 border border-sky-200 p-2.5 rounded-2xl space-y-1.5">
+              <span className="text-[10px] font-bold text-sky-900 block">Isi Cepat Data Kapal Ferry Resmi Kampung Baru:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVesselName('KMP Oputa Yi Ko');
+                    setVesselReg('PK-OPUTA-265-SULTRA');
+                    setVesselType('Feri');
+                    setVesselCapacity('265');
+                    setVesselMotorbikes('80');
+                    setVesselCars('30');
+                    setVesselTrucks('15');
+                    setVesselRoutes('Kasipute – Pising (3x seminggu, 3 jam, 32 Mil) & Kasipute – Tondasi (2x seminggu, 2 jam, 20 Mil)');
+                    setVesselOperator('PT ASDP Indonesia Ferry (Persero)');
+                    setVesselPhone('0811-4090-265');
+                  }}
+                  className="py-1.5 px-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer shadow-xs"
+                >
+                  ⚡ KMP Oputa Yi Ko (265 Org)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVesselName('KMP Bontoharu');
+                    setVesselReg('PK-BONTO-350-SULTRA');
+                    setVesselType('Feri');
+                    setVesselCapacity('350');
+                    setVesselMotorbikes('120');
+                    setVesselCars('45');
+                    setVesselTrucks('20');
+                    setVesselRoutes('Kasipute – Sikeli (6 jam, 60 Mil)');
+                    setVesselOperator('PT ASDP Indonesia Ferry (Persero)');
+                    setVesselPhone('0811-4090-350');
+                  }}
+                  className="py-1.5 px-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer shadow-xs"
+                >
+                  ⚡ KMP Bontoharu (350 Org)
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateVessel} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Kapal</label>

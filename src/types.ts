@@ -153,6 +153,19 @@ export interface Reservation {
   qrCodeUrl?: string;
   cancellationReason?: string;
   cancelledAt?: string;
+  refundStatus?: 'None' | 'Diajukan' | 'Disetujui' | 'Ditolak';
+  refundDetails?: {
+    requestedAt: string;
+    reason: string;
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+    refundAmount: number;
+    adminNote?: string;
+    processedAt?: string;
+    processedBy?: string;
+    transferProofRef?: string;
+  };
   paymentDetails?: {
     qrisUrl?: string;
     vaNumber?: string;

@@ -13,7 +13,6 @@ import {
   Info,
   Calendar,
   X,
-  Sparkles,
   Compass,
   CheckCircle2,
 } from 'lucide-react';
@@ -34,18 +33,6 @@ const REGIONS: { key: string; label: string; icon: string }[] = [
   { key: 'Sulawesi', label: 'Sulawesi', icon: '🐬' },
   { key: 'Nusa Tenggara', label: 'Nusa Tenggara (NTB/NTT)', icon: '🏝️' },
   { key: 'Maluku & Papua', label: 'Maluku & Papua', icon: '🦜' },
-];
-
-const POPULAR_HOT_TAGS = [
-  { name: 'Merak → Bakauheni', query: 'Merak Bakauheni' },
-  { name: 'Ketapang → Gilimanuk', query: 'Ketapang Gilimanuk' },
-  { name: 'Sanur → Nusa Penida', query: 'Sanur Nusa Penida' },
-  { name: 'Balikpapan → Penajam', query: 'Balikpapan Penajam' },
-  { name: 'Sorong → Raja Ampat', query: 'Sorong Raja Ampat' },
-  { name: 'Labuan Bajo → Komodo', query: 'Labuan Bajo Komodo' },
-  { name: 'Banda Aceh → Sabang', query: 'Banda Aceh Sabang' },
-  { name: 'Batam → Tanjung Pinang', query: 'Batam Tanjung Pinang' },
-  { name: 'Marina Ancol → P. Pramuka', query: 'Ancol Pramuka' },
 ];
 
 export const RouteCatalog: React.FC<RouteCatalogProps> = ({
@@ -151,27 +138,10 @@ export const RouteCatalog: React.FC<RouteCatalogProps> = ({
             </div>
           </div>
 
-          {/* Popular Hot Tags */}
-          <div className="pt-1">
-            <div className="flex items-center space-x-2 text-[11px] text-sky-200 font-bold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Rute Favorit Populer:</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {POPULAR_HOT_TAGS.map((tag) => (
-                <button
-                  key={tag.name}
-                  onClick={() => setSearchTerm(tag.query)}
-                  className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all border ${
-                    searchTerm === tag.query
-                      ? 'bg-sky-400 text-slate-950 font-extrabold border-sky-300 shadow-sm'
-                      : 'bg-white/10 hover:bg-white/20 text-sky-100 border-white/20'
-                  }`}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
+          {/* Info Rute Resmi Admin */}
+          <div className="pt-1 flex items-center space-x-2 text-[11px] text-sky-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+            <span>Rute & jadwal kapal resmi yang ditampilkan dikonfigurasi dan dipublikasikan langsung oleh Administrator Pelabuhan.</span>
           </div>
         </div>
       </div>

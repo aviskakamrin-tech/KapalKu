@@ -1,6 +1,8 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import { createClient } from '@supabase/supabase-js';
 import {
   INITIAL_USERS,
   INITIAL_VESSELS,
@@ -15,7 +17,13 @@ import {
 } from './src/data/mockData';
 import { User, Vessel, Dock, RouteItem, Schedule, Reservation, WeatherReport, NotificationItem, SOSReport, AuditLog } from './src/types';
 
-// In-Memory Database
+// Supabase Configuration
+let currentSupabaseUrl = process.env.SUPABASE_URL || 'https://gkklzgdxpqfxskuvsdpu.supabase.co';
+let currentSupabaseKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdra2x6Z2R4cHFmeHNrdXZzZHB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMjE5MTgsImV4cCI6MjEwNTY5NzkxOH0.y06Q6MotYwl4PW8rh3BK5VnWf-YoL97kN8coGYTrq5g';
+
+export let supabase = createClient(currentSupabaseUrl, currentSupabaseKey);
+
+// In-Memory & Cache Database
 let users = [...INITIAL_USERS];
 let vessels: Vessel[] = [...INITIAL_VESSELS];
 let docks: Dock[] = [...INITIAL_DOCKS];
@@ -26,6 +34,347 @@ let weatherReports: WeatherReport[] = [...INITIAL_WEATHER];
 let notifications: NotificationItem[] = [...INITIAL_NOTIFICATIONS];
 let sosReports: SOSReport[] = [...INITIAL_SOS];
 let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
+
+// Synchronize from Supabase when tables are present
+async function syncFromSupabase() {
+  try {
+    const { data: dbDocks, error: dockErr } = await supabase.from('docks').select('*');
+    if (!dockErr && dbDocks && dbDocks.length > 0) {
+      docks = dbDocks.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        address: d.address,
+        lat: Number(d.lat),
+        lng: Number(d.lng),
+        status: d.status,
+        province: d.province,
+        city: d.city,
+        region: d.region,
+        dockRole: d.dock_role || 'both',
+        facilities: d.facilities || [],
+        contactPhone: d.contact_phone,
+      }));
+      console.log(`[Supabase] Loaded ${docks.length} docks from database`);
+    }
+
+    const { data: dbVessels, error: vesErr } = await supabase.from('vessels').select('*');
+    if (!vesErr && dbVessels && dbVessels.length > 0) {
+      vessels = dbVessels.map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        registrationNumber: v.registration_number,
+        type: v.type,
+        capacityPassengers: Number(v.capacity_passengers),
+        capacityMotorbikes: Number(v.capacity_motorbikes),
+        capacityCars: Number(v.capacity_cars),
+        capacityTrucks: Number(v.capacity_trucks || 0),
+        status: v.status,
+        operatorId: v.operator_id,
+        operatorName: v.operator_name,
+        operatorPhone: v.operator_phone,
+        speedKts: Number(v.speed_kts),
+        headingDeg: Number(v.heading_deg),
+        currentLat: Number(v.current_lat),
+        currentLng: Number(v.current_lng),
+        lastUpdated: v.last_updated,
+        currentRouteId: v.current_route_id,
+        operatingRoutesDescription: v.operating_routes_description,
+      }));
+      console.log(`[Supabase] Loaded ${vessels.length} vessels from database`);
+    }
+
+    const { data: dbRoutes, error: routeErr } = await supabase.from('routes').select('*');
+    if (!routeErr && dbRoutes && dbRoutes.length > 0) {
+      routes = dbRoutes.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        originDockId: r.origin_dock_id,
+        originDockName: r.origin_dock_name,
+        destinationDockId: r.destination_dock_id,
+        destinationDockName: r.destination_dock_name,
+        distanceKm: Number(r.distance_km || 0),
+        distanceMiles: r.distance_miles ? Number(r.distance_miles) : undefined,
+        estimatedDurationMinutes: Number(r.estimated_duration_minutes || 60),
+        tariffPassenger: Number(r.tariff_passenger || 0),
+        tariffChild: r.tariff_child ? Number(r.tariff_child) : undefined,
+        tariffMotorbike: Number(r.tariff_motorbike || 0),
+        tariffCar: Number(r.tariff_car || 0),
+        tariffTruck: r.tariff_truck ? Number(r.tariff_truck) : undefined,
+        status: r.status,
+        region: r.region,
+        vesselTypesAvailable: r.vessel_types_available || [],
+        description: r.description,
+        frequencyText: r.frequency_text,
+      }));
+      console.log(`[Supabase] Loaded ${routes.length} routes from database`);
+    }
+
+    const { data: dbSchedules, error: schErr } = await supabase.from('schedules').select('*');
+    if (!schErr && dbSchedules && dbSchedules.length > 0) {
+      schedules = dbSchedules.map((s: any) => ({
+        id: s.id,
+        vesselId: s.vessel_id,
+        vesselName: s.vessel_name,
+        vesselType: s.vessel_type,
+        routeId: s.route_id,
+        originDockName: s.origin_dock_name,
+        destinationDockName: s.destination_dock_name,
+        date: s.date,
+        departureTime: s.departure_time,
+        estimatedArrivalTime: s.estimated_arrival_time,
+        tariffPassenger: Number(s.tariff_passenger || 0),
+        tariffChild: s.tariff_child ? Number(s.tariff_child) : undefined,
+        tariffMotorbike: Number(s.tariff_motorbike || 0),
+        tariffCar: Number(s.tariff_car || 0),
+        tariffTruck: s.tariff_truck ? Number(s.tariff_truck) : undefined,
+        status: s.status,
+        statusReason: s.status_reason,
+        bookedPassengers: Number(s.booked_passengers || 0),
+        maxPassengers: Number(s.max_passengers || 100),
+        bookedMotorbikes: Number(s.booked_motorbikes || 0),
+        bookedCars: Number(s.booked_cars || 0),
+        bookedTrucks: Number(s.booked_trucks || 0),
+      }));
+      console.log(`[Supabase] Loaded ${schedules.length} schedules from database`);
+    }
+
+    const { data: dbReservations, error: resErr } = await supabase.from('reservations').select('*');
+    if (!resErr && dbReservations && dbReservations.length > 0) {
+      reservations = dbReservations.map((r: any) => ({
+        id: r.id,
+        bookingCode: r.booking_code,
+        userId: r.user_id,
+        userName: r.user_name,
+        userPhone: r.user_phone,
+        userEmail: r.user_email,
+        scheduleId: r.schedule_id,
+        vesselName: r.vessel_name,
+        vesselType: r.vessel_type,
+        originDockName: r.origin_dock_name,
+        destinationDockName: r.destination_dock_name,
+        travelDate: r.travel_date,
+        departureTime: r.departure_time,
+        estimatedArrivalTime: r.estimated_arrival_time,
+        passengersCount: Number(r.passengers_count),
+        motorbikesCount: Number(r.motorbikes_count),
+        carsCount: Number(r.cars_count),
+        passengersList: r.passengers_list || [],
+        vehiclePlate: r.vehicle_plate,
+        vehicleType: r.vehicle_type,
+        basePrice: Number(r.base_price || 0),
+        insuranceFee: Number(r.insurance_fee || 0),
+        portServiceFee: Number(r.port_service_fee || 0),
+        totalPrice: Number(r.total_price),
+        paymentMethod: r.payment_method,
+        paymentStatus: r.payment_status,
+        reservationStatus: r.reservation_status,
+        checkInStatus: r.check_in_status || 'Belum Check-In',
+        checkInTime: r.check_in_time,
+        scannedBy: r.scanned_by,
+        scannedAt: r.scanned_at,
+        gateNumber: r.gate_number,
+        createdAt: r.created_at,
+        qrCodeUrl: r.qr_code_url,
+        paymentDetails: r.payment_details,
+      }));
+      console.log(`[Supabase] Loaded ${reservations.length} reservations from database`);
+    }
+  } catch (err) {
+    console.log('[Supabase] Initial sync skipped or tables not yet migrated:', err);
+  }
+}
+
+// Direct Sync Helpers to Supabase
+async function syncRouteToSupabase(route: RouteItem) {
+  try {
+    await supabase.from('routes').upsert({
+      id: route.id,
+      name: route.name,
+      origin_dock_id: route.originDockId || null,
+      origin_dock_name: route.originDockName,
+      destination_dock_id: route.destinationDockId || null,
+      destination_dock_name: route.destinationDockName,
+      distance_km: route.distanceKm || 0,
+      distance_miles: route.distanceMiles || null,
+      estimated_duration_minutes: route.estimatedDurationMinutes || 60,
+      tariff_passenger: route.tariffPassenger || 0,
+      tariff_child: route.tariffChild || 0,
+      tariff_motorbike: route.tariffMotorbike || 0,
+      tariff_car: route.tariffCar || 0,
+      tariff_truck: route.tariffTruck || 0,
+      status: route.status || 'Operasional',
+      region: route.region || 'Sulawesi',
+      vessel_types_available: route.vesselTypesAvailable || [],
+      description: route.description || '',
+      frequency_text: route.frequencyText || '',
+    });
+    console.log(`[Supabase] Route synced: ${route.name}`);
+  } catch (err: any) {
+    console.warn(`[Supabase] Route sync notice: ${err?.message}`);
+  }
+}
+
+async function deleteRouteFromSupabase(id: string) {
+  try {
+    await supabase.from('routes').delete().eq('id', id);
+  } catch (err: any) {
+    console.warn(`[Supabase] Route delete notice: ${err?.message}`);
+  }
+}
+
+async function syncScheduleToSupabase(schedule: Schedule) {
+  try {
+    await supabase.from('schedules').upsert({
+      id: schedule.id,
+      vessel_id: schedule.vesselId || null,
+      vessel_name: schedule.vesselName,
+      vessel_type: schedule.vesselType,
+      route_id: schedule.routeId || null,
+      origin_dock_name: schedule.originDockName,
+      destination_dock_name: schedule.destinationDockName,
+      date: schedule.date,
+      departure_time: schedule.departureTime,
+      estimated_arrival_time: schedule.estimatedArrivalTime,
+      tariff_passenger: schedule.tariffPassenger || 0,
+      tariff_child: schedule.tariffChild || 0,
+      tariff_motorbike: schedule.tariffMotorbike || 0,
+      tariff_car: schedule.tariffCar || 0,
+      tariff_truck: schedule.tariffTruck || 0,
+      status: schedule.status || 'scheduled',
+      status_reason: schedule.statusReason || null,
+      booked_passengers: schedule.bookedPassengers || 0,
+      max_passengers: schedule.maxPassengers || 100,
+      booked_motorbikes: schedule.bookedMotorbikes || 0,
+      booked_cars: schedule.bookedCars || 0,
+      booked_trucks: schedule.bookedTrucks || 0,
+    });
+    console.log(`[Supabase] Schedule synced: ${schedule.id}`);
+  } catch (err: any) {
+    console.warn(`[Supabase] Schedule sync notice: ${err?.message}`);
+  }
+}
+
+async function deleteScheduleFromSupabase(id: string) {
+  try {
+    await supabase.from('schedules').delete().eq('id', id);
+  } catch (err: any) {
+    console.warn(`[Supabase] Schedule delete notice: ${err?.message}`);
+  }
+}
+
+async function syncVesselToSupabase(vessel: Vessel) {
+  try {
+    await supabase.from('vessels').upsert({
+      id: vessel.id,
+      name: vessel.name,
+      registration_number: vessel.registrationNumber || null,
+      type: vessel.type,
+      capacity_passengers: vessel.capacityPassengers || 50,
+      capacity_motorbikes: vessel.capacityMotorbikes || 0,
+      capacity_cars: vessel.capacityCars || 0,
+      capacity_trucks: vessel.capacityTrucks || 0,
+      status: vessel.status || 'Bertambat',
+      operator_id: vessel.operatorId || null,
+      operator_name: vessel.operatorName || null,
+      operator_phone: vessel.operatorPhone || null,
+      speed_kts: vessel.speedKts || 0,
+      heading_deg: vessel.headingDeg || 0,
+      current_lat: vessel.currentLat,
+      current_lng: vessel.currentLng,
+      last_updated: vessel.lastUpdated,
+      current_route_id: vessel.currentRouteId || null,
+      operating_routes_description: vessel.operatingRoutesDescription || null,
+    });
+    console.log(`[Supabase] Vessel synced: ${vessel.name}`);
+  } catch (err: any) {
+    console.warn(`[Supabase] Vessel sync notice: ${err?.message}`);
+  }
+}
+
+async function deleteVesselFromSupabase(id: string) {
+  try {
+    await supabase.from('vessels').delete().eq('id', id);
+  } catch (err: any) {
+    console.warn(`[Supabase] Vessel delete notice: ${err?.message}`);
+  }
+}
+
+async function syncDockToSupabase(dock: Dock) {
+  try {
+    await supabase.from('docks').upsert({
+      id: dock.id,
+      name: dock.name,
+      address: dock.address,
+      lat: dock.lat,
+      lng: dock.lng,
+      status: dock.status || 'Aktif',
+      province: dock.province || null,
+      city: dock.city || null,
+      region: dock.region || null,
+      dock_role: dock.dockRole || 'both',
+      facilities: dock.facilities || [],
+      contact_phone: dock.contactPhone || null,
+    });
+    console.log(`[Supabase] Dock synced: ${dock.name}`);
+  } catch (err: any) {
+    console.warn(`[Supabase] Dock sync notice: ${err?.message}`);
+  }
+}
+
+async function deleteDockFromSupabase(id: string) {
+  try {
+    await supabase.from('docks').delete().eq('id', id);
+  } catch (err: any) {
+    console.warn(`[Supabase] Dock delete notice: ${err?.message}`);
+  }
+}
+
+async function syncReservationToSupabase(res: Reservation) {
+  try {
+    await supabase.from('reservations').upsert({
+      id: res.id,
+      booking_code: res.bookingCode,
+      user_id: res.userId,
+      user_name: res.userName,
+      user_phone: res.userPhone,
+      user_email: res.userEmail || null,
+      schedule_id: res.scheduleId || null,
+      vessel_name: res.vesselName,
+      vessel_type: res.vesselType,
+      origin_dock_name: res.originDockName,
+      destination_dock_name: res.destinationDockName,
+      travel_date: res.travelDate,
+      departure_time: res.departureTime,
+      estimated_arrival_time: res.estimatedArrivalTime || null,
+      passengers_count: res.passengersCount,
+      motorbikes_count: res.motorbikesCount,
+      cars_count: res.carsCount,
+      passengers_list: res.passengersList || [],
+      vehicle_plate: res.vehiclePlate || null,
+      vehicle_type: res.vehicleType || null,
+      base_price: res.basePrice,
+      insurance_fee: res.insuranceFee,
+      port_service_fee: res.portServiceFee,
+      total_price: res.totalPrice,
+      payment_method: res.paymentMethod || null,
+      payment_status: res.paymentStatus,
+      reservation_status: res.reservationStatus,
+      check_in_status: res.checkInStatus,
+      check_in_time: res.checkInTime || null,
+      scanned_by: res.scannedBy || null,
+      scanned_at: res.scannedAt || null,
+      gate_number: res.gateNumber || null,
+      created_at: res.createdAt,
+      qr_code_url: res.qrCodeUrl || null,
+      cancellation_reason: res.cancellationReason || null,
+      cancelled_at: res.cancelledAt || null,
+      payment_details: res.paymentDetails || null,
+    });
+    console.log(`[Supabase] Reservation synced: ${res.bookingCode}`);
+  } catch (err: any) {
+    console.warn(`[Supabase] Reservation sync notice: ${err?.message}`);
+  }
+}
 
 // Helper log function
 function addAuditLog(actorName: string, actorRole: string, action: string, details: string) {
@@ -185,6 +534,34 @@ async function startServer() {
     });
   });
 
+  // Users Directory & Profile Management
+  app.get('/api/users', (_req, res) => {
+    // Return all users (read-only directory for admin)
+    res.json(users);
+  });
+
+  app.put('/api/users/:id', (req, res) => {
+    const { id } = req.params;
+    const requesterId = req.headers['x-user-id'] as string;
+
+    // Validasi otorisasi: Akun pengguna HANYA bisa diubah dan diatur oleh pengguna itu sendiri
+    if (requesterId && requesterId !== id) {
+      return res.status(403).json({
+        error: 'Akses Ditolak: Akun pengguna hanya dapat diubah dan diatur secara mandiri oleh pengguna yang bersangkutan. Administrator hanya memiliki akses melihat data akun.',
+      });
+    }
+
+    const index = users.findIndex((u) => u.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+    }
+
+    const { role: _ignoredRole, ...safeData } = req.body;
+    users[index] = { ...users[index], ...safeData };
+    addAuditLog(users[index].name, users[index].role, 'USER_UPDATE', `Pembaruan profil mandiri oleh pengguna: ${users[index].name}`);
+    res.json(users[index]);
+  });
+
   // Vessels
   app.get('/api/vessels', (_req, res) => {
     res.json(vessels);
@@ -197,6 +574,7 @@ async function startServer() {
       lastUpdated: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA',
     };
     vessels.unshift(newVessel);
+    syncVesselToSupabase(newVessel);
     addAuditLog(req.body.operatorName || 'Admin', 'admin', 'ADD_VESSEL', `Menambah kapal baru: ${newVessel.name}`);
     res.status(201).json(newVessel);
   });
@@ -213,6 +591,7 @@ async function startServer() {
       lastUpdated: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA',
     };
     vessels[index] = updated;
+    syncVesselToSupabase(updated);
     addAuditLog('Operator / Syahbandar', 'admin', 'UPDATE_VESSEL', `Memperbarui status kapal: ${updated.name} -> ${updated.status}`);
     res.json(updated);
   });
@@ -221,6 +600,7 @@ async function startServer() {
     const { id } = req.params;
     const target = vessels.find((v) => v.id === id);
     vessels = vessels.filter((v) => v.id !== id);
+    deleteVesselFromSupabase(id);
     if (target) {
       addAuditLog('Admin Syahbandar', 'admin', 'DELETE_VESSEL', `Menghapus armada kapal: ${target.name}`);
     }
@@ -241,6 +621,7 @@ async function startServer() {
         status: status || vessels[vIndex].status,
         lastUpdated: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WITA',
       };
+      syncVesselToSupabase(vessels[vIndex]);
       return res.json({ success: true, vessel: vessels[vIndex] });
     }
     res.status(404).json({ error: 'Vessel not found' });
@@ -254,6 +635,7 @@ async function startServer() {
   app.post('/api/docks', (req, res) => {
     const newDock: Dock = { id: `dock_${Date.now()}`, ...req.body };
     docks.push(newDock);
+    syncDockToSupabase(newDock);
     addAuditLog('Admin Syahbandar', 'admin', 'ADD_DOCK', `Menambah dermaga: ${newDock.name}`);
     res.status(201).json(newDock);
   });
@@ -263,6 +645,7 @@ async function startServer() {
     const index = docks.findIndex((d) => d.id === id);
     if (index === -1) return res.status(404).json({ error: 'Dock not found' });
     docks[index] = { ...docks[index], ...req.body };
+    syncDockToSupabase(docks[index]);
     addAuditLog('Admin Syahbandar', 'admin', 'UPDATE_DOCK', `Memperbarui dermaga: ${docks[index].name}`);
     res.json(docks[index]);
   });
@@ -271,6 +654,7 @@ async function startServer() {
     const { id } = req.params;
     const target = docks.find((d) => d.id === id);
     docks = docks.filter((d) => d.id !== id);
+    deleteDockFromSupabase(id);
     if (target) {
       addAuditLog('Admin Syahbandar', 'admin', 'DELETE_DOCK', `Menghapus dermaga: ${target.name}`);
     }
@@ -285,6 +669,7 @@ async function startServer() {
   app.post('/api/routes', (req, res) => {
     const newRoute: RouteItem = { id: `route_${Date.now()}`, ...req.body };
     routes.push(newRoute);
+    syncRouteToSupabase(newRoute);
     addAuditLog('Admin Syahbandar', 'admin', 'ADD_ROUTE', `Menambah rute pelayaran: ${newRoute.name}`);
     res.status(201).json(newRoute);
   });
@@ -294,6 +679,7 @@ async function startServer() {
     const index = routes.findIndex((r) => r.id === id);
     if (index === -1) return res.status(404).json({ error: 'Route not found' });
     routes[index] = { ...routes[index], ...req.body };
+    syncRouteToSupabase(routes[index]);
     addAuditLog('Admin Syahbandar', 'admin', 'UPDATE_ROUTE', `Memperbarui jalur pelayaran: ${routes[index].name}`);
     res.json(routes[index]);
   });
@@ -302,6 +688,7 @@ async function startServer() {
     const { id } = req.params;
     const target = routes.find((r) => r.id === id);
     routes = routes.filter((r) => r.id !== id);
+    deleteRouteFromSupabase(id);
     if (target) {
       addAuditLog('Admin Syahbandar', 'admin', 'DELETE_ROUTE', `Menghapus jalur pelayaran: ${target.name}`);
     }
@@ -316,6 +703,7 @@ async function startServer() {
   app.post('/api/schedules', (req, res) => {
     const newSchedule: Schedule = { id: `sch_${Date.now()}`, ...req.body };
     schedules.unshift(newSchedule);
+    syncScheduleToSupabase(newSchedule);
     addAuditLog('Admin Syahbandar', 'admin', 'ADD_SCHEDULE', `Membuat jadwal baru ${newSchedule.vesselName}`);
     res.status(201).json(newSchedule);
   });
@@ -325,6 +713,7 @@ async function startServer() {
     const index = schedules.findIndex((s) => s.id === id);
     if (index === -1) return res.status(404).json({ error: 'Schedule not found' });
     schedules[index] = { ...schedules[index], ...req.body };
+    syncScheduleToSupabase(schedules[index]);
 
     // Broadcast notification if delayed or cancelled
     if (req.body.status === 'delayed' || req.body.status === 'cancelled') {
@@ -349,6 +738,7 @@ async function startServer() {
     const { id } = req.params;
     const target = schedules.find((s) => s.id === id);
     schedules = schedules.filter((s) => s.id !== id);
+    deleteScheduleFromSupabase(id);
     if (target) {
       addAuditLog('Admin Syahbandar', 'admin', 'DELETE_SCHEDULE', `Menghapus jadwal kapal: ${target.vesselName}`);
     }
@@ -450,6 +840,7 @@ async function startServer() {
     };
 
     reservations.unshift(newRes);
+    syncReservationToSupabase(newRes);
     addAuditLog(newRes.userName, 'passenger', 'CREATE_BOOKING', `Reservasi tiket berhasil: ${bookingCode} (${sch.vesselName})`);
 
     // Push notification for passenger
@@ -493,6 +884,7 @@ async function startServer() {
     };
 
     reservations[index] = updated;
+    syncReservationToSupabase(updated);
 
     addAuditLog(
       updated.userName,
@@ -543,6 +935,7 @@ async function startServer() {
     };
 
     reservations[index] = updated;
+    syncReservationToSupabase(updated);
 
     // Free up schedule capacity
     const schIndex = schedules.findIndex((s) => s.id === current.scheduleId);
@@ -564,6 +957,187 @@ async function startServer() {
       userId: current.userId,
       title: '❌ Tiket Dibatalkan',
       message: `Pemesanan tiket ${current.bookingCode} (${current.vesselName}) telah berhasil dibatalkan. Kuota kursi telah dikembalikan.`,
+      type: 'cancel',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    res.json(updated);
+  });
+
+  // Request Ticket Refund endpoint
+  app.post('/api/reservations/:id/refund-request', (req, res) => {
+    const { id } = req.params;
+    const { reason, bankName, accountNumber, accountHolder } = req.body;
+
+    const index = reservations.findIndex((r) => r.id === id || r.bookingCode === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Data reservasi tidak ditemukan.' });
+    }
+
+    const current = reservations[index];
+    const now = new Date().toISOString().slice(0, 10) + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+    const updated: Reservation = {
+      ...current,
+      reservationStatus: 'Dibatalkan',
+      cancellationReason: reason || 'Permintaan pembatalan tiket dan refund dana',
+      cancelledAt: now,
+      refundStatus: 'Diajukan',
+      refundDetails: {
+        requestedAt: now,
+        reason: reason || 'Pengajuan pembatalan & refund dana',
+        bankName: bankName || 'Bank/E-Wallet',
+        accountNumber: accountNumber || '-',
+        accountHolder: accountHolder || current.userName,
+        refundAmount: current.totalPrice,
+      },
+    };
+
+    reservations[index] = updated;
+    syncReservationToSupabase(updated);
+
+    // Free up schedule capacity
+    const schIndex = schedules.findIndex((s) => s.id === current.scheduleId);
+    if (schIndex !== -1) {
+      schedules[schIndex].bookedPassengers = Math.max(0, schedules[schIndex].bookedPassengers - current.passengersCount);
+      schedules[schIndex].bookedMotorbikes = Math.max(0, schedules[schIndex].bookedMotorbikes - current.motorbikesCount);
+      schedules[schIndex].bookedCars = Math.max(0, schedules[schIndex].bookedCars - current.carsCount);
+    }
+
+    addAuditLog(
+      current.userName,
+      'passenger',
+      'REFUND_REQUEST',
+      `Pengajuan refund tiket ${current.bookingCode} senilai Rp ${current.totalPrice.toLocaleString('id-ID')} ke rekening ${bankName} ${accountNumber} a.n ${accountHolder}`
+    );
+
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: current.userId,
+      title: '💸 Permintaan Refund Terkirim',
+      message: `Pengajuan refund dana tiket ${current.bookingCode} sebesar Rp ${current.totalPrice.toLocaleString('id-ID')} telah dikirim dan sedang menunggu persetujuan Administrator.`,
+      type: 'booking',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    res.json(updated);
+  });
+
+  // Approve Ticket Refund endpoint
+  app.post('/api/reservations/:id/refund-approve', (req, res) => {
+    const { id } = req.params;
+    const { transferProofRef, adminNote, officerName } = req.body;
+
+    const index = reservations.findIndex((r) => r.id === id || r.bookingCode === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Data reservasi tidak ditemukan.' });
+    }
+
+    const current = reservations[index];
+    const now = new Date().toISOString().slice(0, 10) + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const refNo = transferProofRef || `TRF-REF-${Date.now().toString().slice(-6)}`;
+    const note = adminNote || 'Refund telah disetujui dan ditransfer ke rekening pemohon.';
+    const officer = officerName || 'Admin Keuangan';
+
+    const prevDetails = current.refundDetails;
+
+    const updated: Reservation = {
+      ...current,
+      refundStatus: 'Disetujui',
+      refundDetails: {
+        requestedAt: prevDetails?.requestedAt || now,
+        reason: prevDetails?.reason || current.cancellationReason || 'Pembatalan tiket',
+        bankName: prevDetails?.bankName || 'Bank/E-Wallet',
+        accountNumber: prevDetails?.accountNumber || '-',
+        accountHolder: prevDetails?.accountHolder || current.userName,
+        refundAmount: prevDetails?.refundAmount || current.totalPrice,
+        adminNote: note,
+        processedAt: now,
+        processedBy: officer,
+        transferProofRef: refNo,
+      },
+    };
+
+    reservations[index] = updated;
+    syncReservationToSupabase(updated);
+
+    addAuditLog(
+      officer,
+      'admin',
+      'REFUND_APPROVED',
+      `Menyetujui refund tiket ${current.bookingCode} sebesar Rp ${current.totalPrice.toLocaleString('id-ID')} (Ref: ${refNo})`
+    );
+
+    // Hapus tanda / notifikasi pengajuan refund lama agar tidak ada lagi tanda "pengajuan"
+    const targetBookingCode = current.bookingCode;
+    notifications = notifications.filter(
+      (n) => !(
+        (n.title.toLowerCase().includes('pengajuan') || n.title.toLowerCase().includes('permintaan')) &&
+        (n.message.includes(targetBookingCode) || n.title.includes(targetBookingCode))
+      )
+    );
+
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: current.userId,
+      title: '✅ Refund Tiket Selesai (Dana Telah Ditransfer)',
+      message: `Dana pengembalian tiket ${current.bookingCode} sebesar Rp ${current.totalPrice.toLocaleString('id-ID')} telah berhasil ditransfer ke rekening Anda (No. Ref: ${refNo}).`,
+      type: 'booking',
+      read: false,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    res.json(updated);
+  });
+
+  // Reject Ticket Refund endpoint
+  app.post('/api/reservations/:id/refund-reject', (req, res) => {
+    const { id } = req.params;
+    const { reason, officerName } = req.body;
+
+    const index = reservations.findIndex((r) => r.id === id || r.bookingCode === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Data reservasi tidak ditemukan.' });
+    }
+
+    const current = reservations[index];
+    const now = new Date().toISOString().slice(0, 10) + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const officer = officerName || 'Admin Pelabuhan';
+    const prevDetails = current.refundDetails;
+
+    const updated: Reservation = {
+      ...current,
+      refundStatus: 'Ditolak',
+      refundDetails: {
+        requestedAt: prevDetails?.requestedAt || now,
+        reason: prevDetails?.reason || current.cancellationReason || 'Pembatalan tiket',
+        bankName: prevDetails?.bankName || 'Bank/E-Wallet',
+        accountNumber: prevDetails?.accountNumber || '-',
+        accountHolder: prevDetails?.accountHolder || current.userName,
+        refundAmount: prevDetails?.refundAmount || current.totalPrice,
+        adminNote: reason || 'Pengajuan refund ditolak oleh Admin.',
+        processedAt: now,
+        processedBy: officer,
+      },
+    };
+
+    reservations[index] = updated;
+    syncReservationToSupabase(updated);
+
+    addAuditLog(
+      officer,
+      'admin',
+      'REFUND_REJECTED',
+      `Menolak refund tiket ${current.bookingCode}. Alasan: ${reason || '-'}`
+    );
+
+    notifications.unshift({
+      id: `notif_${Date.now()}`,
+      userId: current.userId,
+      title: '⚠️ Pengajuan Refund Tiket Ditolak',
+      message: `Permintaan refund untuk tiket ${current.bookingCode} ditolak. Alasan: ${reason || 'Ketentuan tidak terpenuhi'}.`,
       type: 'cancel',
       read: false,
       createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
@@ -629,6 +1203,7 @@ async function startServer() {
       checkInStatus: 'Sudah Check-In (Boarded)',
       checkInTime,
     };
+    syncReservationToSupabase(reservations[index]);
 
     addAuditLog(
       officerName || 'Petugas Gate Dermaga',
@@ -769,6 +1344,102 @@ async function startServer() {
     });
   });
 
+  // Hapus semua data sample dari memory server
+  app.post('/api/clear-sample-data', (_req, res) => {
+    users = [];
+    vessels = [];
+    docks = [];
+    routes = [];
+    schedules = [];
+    reservations = [];
+    weatherReports = [];
+    notifications = [];
+    sosReports = [];
+    auditLogs = [];
+    res.json({ success: true, message: 'Semua data sample berhasil dihapus dari aplikasi.' });
+  });
+
+  // Muat data resmi Pelabuhan Ferry Kampung Baru, KMP Oputa Yi Ko, dan KMP Bontoharu
+  app.post('/api/seed-kampung-baru', (_req, res) => {
+    users = [...INITIAL_USERS];
+    vessels = [...INITIAL_VESSELS];
+    docks = [...INITIAL_DOCKS];
+    routes = [...INITIAL_ROUTES];
+    schedules = [...INITIAL_SCHEDULES];
+    weatherReports = [...INITIAL_WEATHER];
+    notifications = [...INITIAL_NOTIFICATIONS];
+    auditLogs = [...INITIAL_AUDIT_LOGS];
+    res.json({ success: true, message: 'Data resmi Pelabuhan Ferry Kampung Baru berhasil dimuat.' });
+  });
+
+  // ================= SUPABASE INTEGRATION APIS =================
+  app.get('/api/supabase/status', async (_req, res) => {
+    const tables = ['users', 'docks', 'routes', 'vessels', 'schedules', 'reservations', 'notifications', 'weather', 'sos_reports', 'audit_logs'];
+    const tableStatus: Record<string, { exists: boolean; rowCount: number; error?: string }> = {};
+    let allExist = true;
+
+    for (const t of tables) {
+      try {
+        const { data, error } = await supabase.from(t).select('id').limit(1);
+        if (error) {
+          allExist = false;
+          tableStatus[t] = { exists: false, rowCount: 0, error: error.message };
+        } else {
+          const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
+          tableStatus[t] = { exists: true, rowCount: count ?? (Array.isArray(data) ? data.length : 0) };
+        }
+      } catch (err: any) {
+        allExist = false;
+        tableStatus[t] = { exists: false, rowCount: 0, error: err?.message };
+      }
+    }
+
+    res.json({
+      connected: true,
+      projectUrl: currentSupabaseUrl,
+      tables: tableStatus,
+      allTablesExist: allExist,
+    });
+  });
+
+  app.post('/api/supabase/config', async (req, res) => {
+    const { url, key } = req.body;
+    if (!url || !key) {
+      return res.status(400).json({ error: 'URL and Anon Key are required.' });
+    }
+    try {
+      currentSupabaseUrl = url.trim();
+      currentSupabaseKey = key.trim();
+      supabase = createClient(currentSupabaseUrl, currentSupabaseKey);
+      await syncFromSupabase();
+      console.log(`[Supabase] Reconnected with new URL: ${currentSupabaseUrl}`);
+      res.json({ success: true, projectUrl: currentSupabaseUrl });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Gagal mengubah konfigurasi Supabase' });
+    }
+  });
+
+  app.get('/api/supabase/schema', (_req, res) => {
+    try {
+      const schemaPath = path.join(process.cwd(), 'supabase', 'schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        return res.sendFile(schemaPath);
+      }
+      const rootSchema = path.join(process.cwd(), 'supabase_schema.sql');
+      if (fs.existsSync(rootSchema)) {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        return res.sendFile(rootSchema);
+      }
+      res.status(404).send('Schema file not found');
+    } catch (e: any) {
+      res.status(500).send(e?.message);
+    }
+  });
+
+  // Attempt initial sync from Supabase
+  await syncFromSupabase();
+
   // Vite middleware or production static
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -776,6 +1447,20 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+    app.use('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      if (url.startsWith('/api')) {
+        return next();
+      }
+      try {
+        const template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e: any) {
+        if (vite) vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
