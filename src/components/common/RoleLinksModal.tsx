@@ -34,7 +34,7 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
   activeRole,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'links' | 'cloudflare'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'vercel' | 'cloudflare'>('links');
 
   if (!isOpen) return null;
 
@@ -172,6 +172,22 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
           >
             <Globe className="w-4 h-4 text-sky-600" />
             <span>Tautan & Portal 3 Role</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('vercel')}
+            className={`flex items-center space-x-2 py-2 px-3 sm:px-4 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'vercel'
+                ? 'border-slate-900 text-slate-950 bg-white rounded-t-xl shadow-xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-black"></span>
+            <span>Deploy di Vercel</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-white">
+              vercel.json Siap
+            </span>
           </button>
 
           <button
@@ -357,6 +373,106 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
             </p>
           </div>
         </div>
+        ) : activeTab === 'vercel' ? (
+          /* VERCEL DEPLOYMENT GUIDE */
+          <div className="p-4 sm:p-6 overflow-y-auto space-y-5 bg-slate-50/60 flex-1 text-slate-800">
+            {/* Intro banner */}
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 shadow-sm space-y-2.5">
+              <div className="flex items-center space-x-2.5 font-bold text-sm sm:text-base">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span>Aplikasi Siap Deploy di Vercel (Zero-Config SPA)</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                File <code className="bg-white/10 px-1.5 py-0.5 rounded font-mono text-emerald-300 font-bold">vercel.json</code>, skrip <code className="bg-white/10 px-1.5 py-0.5 rounded font-mono text-emerald-300 font-bold">npm run vercel-build</code>, dan Serverless Function <code className="bg-white/10 px-1.5 py-0.5 rounded font-mono text-emerald-300 font-bold">api/index.ts</code> sudah disiapkan. Anda dapat mendeploy aplikasi ini ke Vercel hanya dalam 1 klik dari repository GitHub Anda.
+              </p>
+              <div className="pt-1 flex flex-wrap gap-2">
+                <a
+                  href="https://vercel.com/new"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-white text-slate-900 font-bold text-xs hover:bg-slate-100 transition-all shadow-sm"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Buka Vercel Dashboard (Import Repo)</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Quick Specs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Framework Preset</span>
+                <span className="font-mono text-xs font-bold text-slate-900">Vite</span>
+                <span className="text-[10px] text-slate-500 block">Otomatis terdeteksi oleh Vercel</span>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Build Command</span>
+                <code className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded block">npm run vercel-build</code>
+                <span className="text-[10px] text-slate-500 block">Atau gunakan perintah: vite build</span>
+              </div>
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Output Directory</span>
+                <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded inline-block">dist</span>
+                <span className="text-[10px] text-slate-500 block">Berisi index.html & assets teroptimasi</span>
+              </div>
+            </div>
+
+            {/* Environment Variables for Vercel */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs text-slate-900 flex items-center space-x-1.5">
+                  <Terminal className="w-4 h-4 text-slate-700" />
+                  <span>Environment Variables di Vercel (Opsional untuk Supabase):</span>
+                </h4>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Masukkan variabel ini di menu <strong>Settings ➔ Environment Variables</strong> di dashboard proyek Vercel Anda:
+              </p>
+              <div className="bg-slate-900 text-slate-200 p-3 rounded-xl font-mono text-[11px] space-y-1.5 select-all">
+                <div><span className="text-emerald-400">VITE_SUPABASE_URL</span>=https://[id-proyek].supabase.co</div>
+                <div><span className="text-emerald-400">VITE_SUPABASE_ANON_KEY</span>=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</div>
+              </div>
+            </div>
+
+            {/* Link URL Akses Siap Pakai di Vercel */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <h4 className="font-bold text-xs text-slate-900 flex items-center space-x-1.5">
+                <Globe className="w-4 h-4 text-sky-600" />
+                <span>Format Tautan Login 3 Peran di Domain Vercel:</span>
+              </h4>
+              <p className="text-[11px] text-slate-600">
+                Setelah deploy selesai (misal domain Anda: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-800">https://kapalku.vercel.app</code>), Anda dapat langsung membagikan tautan ini ke masing-masing pengguna:
+              </p>
+              <div className="space-y-2 text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+                  <div className="truncate mr-2">
+                    <span className="text-[10px] font-sans font-bold text-indigo-900 block">Link Login Admin:</span>
+                    <span className="text-indigo-700 truncate text-[11px]">https://[proyek-anda].vercel.app/?role=admin&login=true#/admin</span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-cyan-50 border border-cyan-200 flex items-center justify-between">
+                  <div className="truncate mr-2">
+                    <span className="text-[10px] font-sans font-bold text-cyan-900 block">Link Login Petugas Gate:</span>
+                    <span className="text-cyan-700 truncate text-[11px]">https://[proyek-anda].vercel.app/?role=officer&login=true#/petugas</span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-between">
+                  <div className="truncate mr-2">
+                    <span className="text-[10px] font-sans font-bold text-sky-900 block">Link Penumpang & Tiket:</span>
+                    <span className="text-sky-700 truncate text-[11px]">https://[proyek-anda].vercel.app/?role=passenger&login=true#/</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Documentation Note */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-900 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Dokumentasi lengkap deploy tersedia di file <strong>PANDUAN_DEPLOY_VERCEL.md</strong> di root direktori.</span>
+              </div>
+            </div>
+          </div>
         ) : (
           /* CLOUDFLARE PAGES 3 APPS DEPLOYMENT GUIDE */
           <div className="p-4 sm:p-6 overflow-y-auto space-y-5 bg-slate-50/60 flex-1 text-slate-800">

@@ -10,6 +10,7 @@
     "dev:passenger": "vite --mode passenger",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "build:client": "vite build",
+    "vercel-build": "vite build",
     "build:admin": "vite build --mode admin",
     "build:officer": "vite build --mode officer",
     "build:passenger": "vite build --mode passenger",
