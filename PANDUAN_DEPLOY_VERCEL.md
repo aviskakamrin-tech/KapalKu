@@ -99,7 +99,12 @@ Jika Anda ingin memiliki 3 website mandiri (misal: `admin.kapalku.id`, `petugas.
 
 ## ❓ FAQ & Troubleshooting Vercel
 
+* **Q: Mengapa muncul error `[vite]: Rollup failed to resolve import "react/jsx-runtime"` saat build di Vercel?**
+  * *Penyebab*: Ini terjadi jika Anda mengubah pengaturan **Root Directory** di Vercel menjadi `apps/admin`. Karena folder tersebut mengimpor kode bersama dari folder utama, Vercel/Bun tidak dapat menemukan paket React jika dijalankan di sub-folder secara terisolasi.
+  * *Solusi*: Di Vercel Project Settings, **Root Directory WAJIB tetap `./` (Root Repository)**. Untuk memisahkan peran, ubah saja **Build Command** menjadi `npm run build:admin` (atau `build:officer` / `build:passenger`) dan tambahkan Environment Variable `VITE_APP_ROLE`.
+
 * **Q: Mengapa saat refresh halaman `/admin` tidak terjadi error 404?**
   * *Jawab*: Karena file `vercel.json` sudah menyertakan konfigurasi `rewrites` yang mengarahkan semua permintaan halaman kembali ke `/index.html`, sehingga router Vite React menangani rendering URL secara sempurna.
+
 * **Q: Apakah data yang diinput oleh Admin tersimpan?**
   * *Jawab*: Ya! Data admin otomatis disinkronkan ke Supabase PostgreSQL database secara real-time.

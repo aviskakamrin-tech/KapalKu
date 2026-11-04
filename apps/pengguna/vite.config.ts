@@ -1,7 +1,16 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import { defineConfig } from 'vite';
+
+const resolvePkg = (pkg: string) => {
+  const local = path.resolve(__dirname, 'node_modules', pkg);
+  if (fs.existsSync(local)) return local;
+  const root = path.resolve(__dirname, '../../node_modules', pkg);
+  if (fs.existsSync(root)) return root;
+  return pkg;
+};
 
 export default defineConfig({
   define: {
@@ -11,9 +20,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '../../'),
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+      'react': resolvePkg('react'),
+      'react-dom': resolvePkg('react-dom'),
+      'react/jsx-runtime': resolvePkg('react/jsx-runtime'),
     },
     dedupe: ['react', 'react-dom'],
   },
