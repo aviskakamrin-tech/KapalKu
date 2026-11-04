@@ -438,11 +438,12 @@ async function startServer() {
     const cleanId = String(identifier).trim();
     const cleanIdLower = cleanId.toLowerCase();
 
-    // 1. Direct search by email, phone, or full name
+    // 1. Direct search by email, phone, NIP, or full name
     let matchedUser = users.find(
       (u) =>
         u.email.toLowerCase() === cleanIdLower ||
         u.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
+        (u.nip && u.nip.toLowerCase() === cleanIdLower) ||
         u.name.toLowerCase() === cleanIdLower
     );
 
@@ -450,32 +451,43 @@ async function startServer() {
     if (!matchedUser) {
       matchedUser = users.find(
         (u) =>
+          (u.nip && u.nip.toLowerCase().includes(cleanIdLower)) ||
           u.name.toLowerCase().includes(cleanIdLower) ||
           (u.email && u.email.toLowerCase().includes(cleanIdLower))
       );
     }
 
-    // 3. If still not found, create new account with the EXACT name/identifier entered
+    // 3. REJECT UNREGISTERED USERS - TIDAK BISA LOGIN JIKA BELUM MENDAFTAR
     if (!matchedUser) {
-      let derivedName = cleanId;
-      if (cleanId.includes('@')) {
-        const prefix = cleanId.split('@')[0];
-        derivedName = prefix
-          .replace(/[._-]/g, ' ')
-          .replace(/\b\w/g, (c: string) => c.toUpperCase());
-      } else if (cleanId.match(/^[0-9+]/)) {
-        derivedName = `Pengguna ${cleanId.slice(-4)}`;
+      if (role === 'officer') {
+        return res.status(401).json({
+          error: 'Akun petugas tidak ditemukan. Petugas tidak dapat membuat akun sendiri; silakan hubungi Administrator Pelabuhan untuk pembuatan akun dan kata sandi.',
+        });
       }
+      return res.status(401).json({
+        error: 'Akun belum terdaftar. Silakan lakukan pendaftaran akun baru pada tab "Daftar Akun Baru" terlebih dahulu sebelum login.',
+      });
+    }
 
-      matchedUser = {
-        id: `usr_${Date.now()}`,
-        name: derivedName,
-        email: cleanId.includes('@') ? cleanIdLower : `${cleanIdLower.replace(/[^a-z0-9]/g, '') || 'user'}@kapalku.id`,
-        phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
-        role: role || 'passenger',
-        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(derivedName)}`,
-      };
-      users.push(matchedUser);
+    // 4. Role validation
+    if (role === 'officer' && matchedUser.role !== 'officer' && matchedUser.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Akses Ditolak: Akun ini terdaftar sebagai Penumpang. Portal Petugas hanya untuk petugas yang memiliki akun resmi dari Administrator.',
+      });
+    }
+    if (role === 'admin' && matchedUser.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Akses Ditolak: Akun ini tidak memiliki hak akses Administrator Pelabuhan.',
+      });
+    }
+
+    // 5. Password verification
+    if (matchedUser.password && password) {
+      if (matchedUser.password !== password) {
+        return res.status(401).json({ error: 'Kata sandi yang Anda masukkan salah. Silakan periksa kembali.' });
+      }
+    } else if (matchedUser.password && !password) {
+      return res.status(401).json({ error: 'Silakan masukkan kata sandi Anda.' });
     }
 
     addAuditLog(matchedUser.name, matchedUser.role, 'USER_LOGIN', `Pengguna berhasil login: ${matchedUser.name} (${matchedUser.role})`);
@@ -485,6 +497,62 @@ async function startServer() {
       token: `token_${matchedUser.id}_${Date.now()}`,
       message: `Selamat datang kembali, ${matchedUser.name}!`,
     });
+  });
+
+  // Officers Management (Admin only)
+  app.post('/api/officers', (req, res) => {
+    const { name, email, phone, password, nip, dockId, dockName } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Nama lengkap, email, dan kata sandi wajib diisi.' });
+    }
+
+    const existing = users.find(
+      (u) =>
+        u.email.toLowerCase() === email.trim().toLowerCase() ||
+        (nip && u.nip && u.nip.toLowerCase() === nip.trim().toLowerCase())
+    );
+    if (existing) {
+      return res.status(400).json({ error: 'Email atau NIP petugas tersebut sudah terdaftar di sistem.' });
+    }
+
+    const newOfficer: User = {
+      id: `usr_ptg_${Date.now()}`,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone?.trim() || '0812-4211-3344',
+      role: 'officer',
+      password: password,
+      nip: nip?.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
+      dockId: dockId || 'dock_kasipute',
+      dockName: dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+      status: 'Aktif',
+      avatar: `https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80`,
+      createdAt: new Date().toLocaleDateString('id-ID'),
+    };
+
+    users.unshift(newOfficer);
+    addAuditLog('Administrator', 'admin', 'ADD_OFFICER_ACCOUNT', `Admin menambahkan akun petugas baru: ${newOfficer.name} (${newOfficer.nip})`);
+    return res.status(201).json(newOfficer);
+  });
+
+  app.put('/api/officers/:id', (req, res) => {
+    const { id } = req.params;
+    const index = users.findIndex((u) => u.id === id);
+    if (index === -1) return res.status(404).json({ error: 'Petugas tidak ditemukan.' });
+
+    users[index] = { ...users[index], ...req.body, role: 'officer' };
+    addAuditLog('Administrator', 'admin', 'UPDATE_OFFICER_ACCOUNT', `Admin memperbarui data petugas: ${users[index].name}`);
+    return res.json(users[index]);
+  });
+
+  app.delete('/api/officers/:id', (req, res) => {
+    const { id } = req.params;
+    const officer = users.find((u) => u.id === id);
+    users = users.filter((u) => u.id !== id);
+    if (officer) {
+      addAuditLog('Administrator', 'admin', 'DELETE_OFFICER_ACCOUNT', `Admin menghapus akun petugas: ${officer.name}`);
+    }
+    return res.json({ success: true, message: 'Akun petugas berhasil dihapus.' });
   });
 
   app.post('/api/auth/register', (req, res) => {

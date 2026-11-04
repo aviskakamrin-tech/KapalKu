@@ -450,7 +450,6 @@ export default function App() {
                 reservations={reservations}
                 schedules={schedules}
                 onRefreshData={loadAllData}
-                onOpenRoleLinks={() => setIsRoleLinksModalOpen(true)}
               />
             )}
 

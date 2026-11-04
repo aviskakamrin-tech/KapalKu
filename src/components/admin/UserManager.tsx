@@ -1,46 +1,112 @@
 import React, { useState } from 'react';
-import { User, Reservation } from '../../types';
+import { User, Reservation, Dock } from '../../types';
+import { api } from '../../lib/api';
 import {
   Users,
   Search,
   ShieldCheck,
   Lock,
   Eye,
+  EyeOff,
   Mail,
   Phone,
   Ticket,
-  Calendar,
   X,
   CheckCircle2,
-  Clock,
   Filter,
-  CreditCard,
-  Ship,
+  Plus,
+  KeyRound,
+  Copy,
+  Check,
+  Trash2,
+  Edit3,
+  ScanLine,
+  Anchor,
   AlertCircle,
+  Building,
+  UserCheck,
+  UserX,
+  Share2,
 } from 'lucide-react';
 
 interface UserManagerProps {
   users: User[];
+  docks?: Dock[];
   reservations: Reservation[];
   onRefreshData: () => void;
 }
 
 export const UserManager: React.FC<UserManagerProps> = ({
   users,
+  docks = [],
   reservations,
+  onRefreshData,
 }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'officers' | 'passengers' | 'all'>('officers');
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'passenger' | 'officer' | 'admin'>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Filtered Users
-  const filteredUsers = users.filter((u) => {
+  // Modal Tambah Petugas
+  const [isAddOfficerModalOpen, setIsAddOfficerModalOpen] = useState(false);
+  const [officerName, setOfficerName] = useState('');
+  const [officerNip, setOfficerNip] = useState('');
+  const [officerEmail, setOfficerEmail] = useState('');
+  const [officerPhone, setOfficerPhone] = useState('');
+  const [officerPassword, setOfficerPassword] = useState('Petugas123#');
+  const [officerDockId, setOfficerDockId] = useState(docks[0]?.id || 'dock_kasipute');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Modal Sukses / Kredensial Baru
+  const [createdOfficerCreds, setCreatedOfficerCreds] = useState<{
+    officer: User;
+    rawPassword: string;
+  } | null>(null);
+
+  // Modal Edit / Reset Password Petugas
+  const [editingOfficer, setEditingOfficer] = useState<User | null>(null);
+  const [editDockId, setEditDockId] = useState('');
+  const [editNewPassword, setEditNewPassword] = useState('');
+  const [editStatus, setEditStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Copy state
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Generate random password helper
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let res = 'Ptg';
+    for (let i = 0; i < 5; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    res += '@' + Math.floor(10 + Math.random() * 90);
+    setOfficerPassword(res);
+  };
+
+  // Generate auto NIP helper
+  const handleAutoNip = () => {
+    const randomDigits = Math.floor(100 + Math.random() * 900);
+    setOfficerNip(`NIP-PTG-${new Date().getFullYear()}-${randomDigits}`);
+  };
+
+  // Officer filter & passenger filter
+  const officerUsers = users.filter((u) => u.role === 'officer');
+  const passengerUsers = users.filter((u) => u.role === 'passenger');
+  const adminUsers = users.filter((u) => u.role === 'admin');
+
+  const displayedUsers = users.filter((u) => {
     const matchesSearch =
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (u.email && u.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (u.nip && u.nip.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (u.phone && u.phone.includes(searchQuery));
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    return matchesSearch && matchesRole;
+
+    if (!matchesSearch) return false;
+    if (activeSubTab === 'officers') return u.role === 'officer';
+    if (activeSubTab === 'passengers') return u.role === 'passenger';
+    return true;
   });
 
   // Calculate ticket reservations for a user
@@ -54,111 +120,310 @@ export const UserManager: React.FC<UserManagerProps> = ({
     );
   };
 
-  const passengerCount = users.filter((u) => u.role === 'passenger').length;
-  const officerCount = users.filter((u) => u.role === 'officer').length;
-  const adminCount = users.filter((u) => u.role === 'admin').length;
+  // Handle Create Officer
+  const handleCreateOfficerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!officerName.trim()) {
+      setFormError('Nama lengkap petugas wajib diisi.');
+      return;
+    }
+    if (!officerEmail.trim()) {
+      setFormError('Email petugas wajib diisi.');
+      return;
+    }
+    if (!officerPassword || officerPassword.length < 6) {
+      setFormError('Kata sandi petugas minimal 6 karakter.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError('');
+
+    try {
+      const selectedDock = docks.find((d) => d.id === officerDockId);
+      const newOfficer = await api.createOfficerAccount({
+        name: officerName.trim(),
+        nip: officerNip.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
+        email: officerEmail.trim(),
+        phone: officerPhone.trim() || '0812-4211-3344',
+        password: officerPassword,
+        dockId: officerDockId,
+        dockName: selectedDock?.name || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+      });
+
+      setCreatedOfficerCreds({
+        officer: newOfficer,
+        rawPassword: officerPassword,
+      });
+
+      // Reset form
+      setOfficerName('');
+      setOfficerNip('');
+      setOfficerEmail('');
+      setOfficerPhone('');
+      setOfficerPassword('Petugas123#');
+      setIsAddOfficerModalOpen(false);
+
+      onRefreshData();
+    } catch (err: any) {
+      setFormError(err.message || 'Gagal menambahkan akun petugas.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Edit Officer
+  const handleOpenEditOfficer = (officer: User) => {
+    setEditingOfficer(officer);
+    setEditDockId(officer.dockId || docks[0]?.id || '');
+    setEditNewPassword('');
+    setEditStatus(officer.status || 'Aktif');
+  };
+
+  const handleUpdateOfficerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOfficer) return;
+    setIsUpdating(true);
+
+    try {
+      const selectedDock = docks.find((d) => d.id === editDockId);
+      const updateData: Partial<User> = {
+        dockId: editDockId,
+        dockName: selectedDock?.name || editingOfficer.dockName,
+        status: editStatus,
+      };
+
+      if (editNewPassword.trim()) {
+        updateData.password = editNewPassword.trim();
+      }
+
+      await api.updateOfficerAccount(editingOfficer.id, updateData);
+      setEditingOfficer(null);
+      onRefreshData();
+    } catch (err: any) {
+      alert(err.message || 'Gagal memperbarui data petugas.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Handle Delete Officer
+  const handleDeleteOfficer = async (officer: User) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus akun petugas "${officer.name}" (${officer.nip || officer.email})? Petugas ini tidak akan dapat login lagi.`)) {
+      return;
+    }
+
+    try {
+      await api.deleteOfficerAccount(officer.id);
+      onRefreshData();
+    } catch (err: any) {
+      alert(err.message || 'Gagal menghapus akun petugas.');
+    }
+  };
+
+  // Copy Credential Text Format
+  const copyOfficerCredentials = (officer: User, pass?: string) => {
+    const passwordToCopy = pass || officer.password || 'petugas123';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://kapalku.vercel.app';
+    const loginLink = `${origin}/?role=officer&login=true#/petugas`;
+
+    const text = `⚓ KREDENSIAL RESMI AKUN PETUGAS GATE KAPALKU ⚓
+--------------------------------------------------
+Nama Lengkap : ${officer.name}
+NIP / ID     : ${officer.nip || '-'}
+Penugasan    : ${officer.dockName || 'Dermaga Kampung Baru'}
+Email / Login: ${officer.email}
+Kata Sandi   : ${passwordToCopy}
+Status Akun  : ${officer.status || 'Aktif'}
+--------------------------------------------------
+🔗 Link Login Petugas:
+${loginLink}
+
+*PENTING*:
+Petugas tidak dapat membuat akun sendiri. Gunakan Email/NIP dan Kata Sandi di atas untuk masuk ke Scanner Boarding Gate.`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedId(officer.id);
+    setTimeout(() => setCopiedId(null), 3000);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="inline-flex items-center space-x-2 px-2.5 py-1 bg-sky-50 border border-sky-200 rounded-full text-sky-800 text-xs font-bold">
-            <Users className="w-3.5 h-3.5 text-sky-600" />
-            <span>Direktori Akun Pengguna</span>
+      <div className="bg-gradient-to-r from-[#0F2C59] via-[#1E3E62] to-[#0A2647] p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="space-y-2 relative z-10">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 bg-cyan-500/20 border border-cyan-400/40 rounded-full text-cyan-200 text-xs font-bold">
+            <ScanLine className="w-3.5 h-3.5 text-cyan-300" />
+            <span>MANAJEMEN AKUN PETUGAS & PENGGUNA</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-            Daftar Akun Pengguna & Penumpang
+          <h2 className="text-2xl sm:text-3xl font-black text-white">
+            Kelola Akun Petugas Gate & Direktori Penumpang
           </h2>
-          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-            Pantau seluruh data akun pengguna yang terdaftar pada sistem tiket KapalKu. Demi keamanan privasi, hak ubah profil hanya dimiliki oleh pengguna bersangkutan.
+          <p className="text-xs sm:text-sm text-cyan-100/90 max-w-2xl leading-relaxed">
+            Administrator memiliki kewenangan penuh untuk <strong>menerbitkan akun petugas gate dermaga</strong> beserta kata sandi resminya. Petugas tidak dapat mendaftar mandiri demi keamanan verifikasi boarding pass.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2 bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-2xl text-xs">
-          <Lock className="w-5 h-5 text-amber-600 shrink-0" />
-          <div className="leading-tight">
-            <span className="font-bold block">Mode Hanya Lihat (Read-Only)</span>
-            <span className="text-[11px] text-amber-800">Admin hanya berhak melihat, tidak dapat mengubah akun pengguna.</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Kebijakan Privasi & Aturan Hak Akses */}
-      <div className="p-4 bg-gradient-to-r from-sky-50 via-indigo-50/50 to-slate-50 border border-sky-200/80 rounded-2xl flex items-start space-x-3 text-xs text-slate-700 shadow-2xs">
-        <ShieldCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
-            Kebijakan Keamanan: Pengelolaan Akun Pengguna Bersifat Mandiri
-          </span>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            Sesuai aturan keamanan data, akun pengguna (penumpang) <strong>hanya dapat diubah dan diatur secara mandiri oleh masing-masing pemilik akun</strong> melalui menu <em>Pengaturan Akun</em> pada akun mereka. Administrator pelabuhan hanya memiliki izin untuk <strong>melihat data akun</strong> guna keperluan verifikasi manifes pelayaran, pengecekan kontak darurat, dan audit pembatalan/refund.
-          </p>
+        <div className="relative z-10 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setFormError('');
+              setIsAddOfficerModalOpen(true);
+            }}
+            className="w-full sm:w-auto px-5 py-3.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-cyan-500/30 transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>Tambah Akun Petugas Baru</span>
+          </button>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div
+          onClick={() => setActiveSubTab('officers')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-xs ${
+            activeSubTab === 'officers'
+              ? 'bg-cyan-50 border-cyan-300 ring-2 ring-cyan-500'
+              : 'bg-white border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-cyan-800 font-bold uppercase tracking-wider block">
+              Petugas Gate Jaga
+            </span>
+            <ScanLine className="w-4 h-4 text-cyan-600" />
+          </div>
+          <div className="text-2xl font-black text-cyan-900 mt-1">{officerUsers.length}</div>
+          <span className="text-[11px] text-cyan-700 font-medium">Akun diterbitkan admin</span>
+        </div>
+
+        <div
+          onClick={() => setActiveSubTab('passengers')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-xs ${
+            activeSubTab === 'passengers'
+              ? 'bg-sky-50 border-sky-300 ring-2 ring-sky-500'
+              : 'bg-white border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-sky-800 font-bold uppercase tracking-wider block">
+              Akun Penumpang
+            </span>
+            <Users className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-2xl font-black text-sky-900 mt-1">{passengerUsers.length}</div>
+          <span className="text-[11px] text-sky-700 font-medium">Daftar mandiri di web</span>
+        </div>
+
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Pengguna</span>
-          <div className="text-xl sm:text-2xl font-black text-slate-900">{users.length}</div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider block">
+              Administrator
+            </span>
+            <ShieldCheck className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-black text-indigo-900">{adminUsers.length}</div>
+          <span className="text-[11px] text-indigo-700 font-medium">Pengelola operasional</span>
+        </div>
+
+        <div
+          onClick={() => setActiveSubTab('all')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-xs ${
+            activeSubTab === 'all'
+              ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-800'
+              : 'bg-white border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
+              Total Seluruh Akun
+            </span>
+            <Users className="w-4 h-4 text-slate-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 mt-1">{users.length}</div>
           <span className="text-[11px] text-slate-500 font-medium">Terdaftar di sistem</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[10px] text-sky-600 font-bold uppercase tracking-wider block">Akun Penumpang</span>
-          <div className="text-xl sm:text-2xl font-black text-sky-700">{passengerCount}</div>
-          <span className="text-[11px] text-sky-600 font-medium">Pengguna layanan tiket</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[10px] text-cyan-600 font-bold uppercase tracking-wider block">Petugas Gate</span>
-          <div className="text-xl sm:text-2xl font-black text-cyan-700">{officerCount}</div>
-          <span className="text-[11px] text-cyan-600 font-medium">Validasi barcode gate</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider block">Administrator</span>
-          <div className="text-xl sm:text-2xl font-black text-indigo-700">{adminCount}</div>
-          <span className="text-[11px] text-indigo-600 font-medium">Pengelola operasional</span>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      {/* Main SubTab Switcher & Search Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <div className="flex items-center space-x-1.5 w-full md:w-auto">
+          <button
+            onClick={() => setActiveSubTab('officers')}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+              activeSubTab === 'officers'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            <ScanLine className="w-3.5 h-3.5" />
+            <span>Akun Petugas Gate ({officerUsers.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('passengers')}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+              activeSubTab === 'passengers'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Akun Penumpang ({passengerUsers.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('all')}
+            className={`hidden sm:flex px-3 py-2 rounded-xl text-xs font-bold transition-all items-center space-x-1.5 cursor-pointer ${
+              activeSubTab === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            <span>Semua ({users.length})</span>
+          </button>
+        </div>
+
+        <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama, email, atau no HP..."
+            placeholder="Cari nama, NIP, email, atau no HP..."
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 outline-none"
           />
         </div>
-
-        <div className="flex items-center space-x-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
-          {[
-            { id: 'all', label: `Semua (${users.length})` },
-            { id: 'passenger', label: `Penumpang (${passengerCount})` },
-            { id: 'officer', label: `Petugas (${officerCount})` },
-            { id: 'admin', label: `Admin (${adminCount})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setRoleFilter(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                roleFilter === tab.id
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
+
+      {/* Information Banner based on subtab */}
+      {activeSubTab === 'officers' ? (
+        <div className="p-4 bg-cyan-50/80 border border-cyan-200 rounded-2xl flex items-start space-x-3 text-xs text-cyan-950 shadow-2xs">
+          <ShieldCheck className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-extrabold text-cyan-950 text-xs sm:text-sm">
+              Kebijakan Petugas Gate: Akun Wajib Dibuatkan oleh Administrator
+            </span>
+            <p className="text-[11px] text-cyan-900 leading-relaxed">
+              Petugas di lapangan <strong>tidak bisa membuat akun sendiri</strong> dari portal login. Anda dapat menambahkan akun petugas baru melalui tombol <strong>"+ Tambah Akun Petugas Baru"</strong>, kemudian menyalin kredensial login (Email/NIP & Kata Sandi) untuk diberikan kepada petugas yang bertugas di dermaga gate.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 bg-sky-50/80 border border-sky-200 rounded-2xl flex items-start space-x-3 text-xs text-sky-950 shadow-2xs">
+          <Lock className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-extrabold text-sky-950 text-xs sm:text-sm">
+              Direktori Penumpang (Mode Hanya Lihat demi Privasi Pengguna)
+            </span>
+            <p className="text-[11px] text-sky-900 leading-relaxed">
+              Akun penumpang didaftarkan secara mandiri oleh masyarakat via tab pendaftaran akun. Sesuai regulasi privasi konsumen, administrator pelabuhan hanya memiliki hak membaca data akun untuk verifikasi manifes dan kontak tiket.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Table of Users */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -166,25 +431,26 @@ export const UserManager: React.FC<UserManagerProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
               <tr>
-                <th className="py-3.5 px-4 sm:px-6">Pengguna & Akun</th>
-                <th className="py-3.5 px-4">Role / Hak Akses</th>
-                <th className="py-3.5 px-4">Kontak (Email / HP)</th>
-                <th className="py-3.5 px-4 text-center">Riwayat Tiket</th>
-                <th className="py-3.5 px-4 text-center">Status Akun</th>
-                <th className="py-3.5 px-4 sm:px-6 text-right">Opsi Tindakan</th>
+                <th className="py-3.5 px-4 sm:px-6">Profil & Akun</th>
+                <th className="py-3.5 px-4">Role / Pos Tugas</th>
+                <th className="py-3.5 px-4">Kontak Resmi</th>
+                <th className="py-3.5 px-4 text-center">Status</th>
+                <th className="py-3.5 px-4 sm:px-6 text-right">Aksi & Kredensial</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredUsers.length === 0 ? (
+              {displayedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <span>Tidak ada data akun pengguna yang cocok dengan pencarian.</span>
+                    <span>Tidak ada data akun yang cocok dengan pencarian.</span>
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => {
-                  const userRes = getUserReservations(user);
+                displayedUsers.map((user) => {
+                  const isOfficer = user.role === 'officer';
+                  const isCopied = copiedId === user.id;
+
                   return (
                     <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 sm:px-6">
@@ -192,11 +458,27 @@ export const UserManager: React.FC<UserManagerProps> = ({
                           <img
                             src={user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.name}`}
                             alt={user.name}
-                            className="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0"
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
                           />
                           <div>
-                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{user.name}</div>
-                            <div className="font-mono text-[10px] text-slate-400">ID: {user.id}</div>
+                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center space-x-1.5">
+                              <span>{user.name}</span>
+                              {user.status === 'Nonaktif' && (
+                                <span className="text-[9px] bg-red-100 text-red-700 px-1.5 py-0.2 rounded font-bold">
+                                  Nonaktif
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-mono text-[10px] text-slate-500 flex items-center space-x-2">
+                              {user.nip ? (
+                                <span className="bg-cyan-50 border border-cyan-200 text-cyan-800 px-1.5 py-0.2 rounded font-bold">
+                                  {user.nip}
+                                </span>
+                              ) : (
+                                <span>ID: {user.id}</span>
+                              )}
+                              {user.createdAt && <span>• Terdaftar: {user.createdAt}</span>}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -207,12 +489,17 @@ export const UserManager: React.FC<UserManagerProps> = ({
                             🛡️ Administrator
                           </span>
                         ) : user.role === 'officer' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-200">
-                            🔍 Petugas Gate
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-200">
+                              🔍 Petugas Scanner Gate
+                            </span>
+                            <div className="text-[11px] text-slate-600 font-medium truncate max-w-[180px]" title={user.dockName}>
+                              Pos: {user.dockName || 'Kampung Baru'}
+                            </div>
+                          </div>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200">
-                            👥 Penumpang / Pengguna
+                            👥 Penumpang Umum
                           </span>
                         )}
                       </td>
@@ -220,7 +507,9 @@ export const UserManager: React.FC<UserManagerProps> = ({
                       <td className="py-3.5 px-4 space-y-0.5">
                         <div className="flex items-center space-x-1.5 text-slate-700">
                           <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate max-w-[160px] sm:max-w-[200px]">{user.email || '-'}</span>
+                          <span className="truncate max-w-[170px] font-mono text-[11px]">
+                            {user.email || '-'}
+                          </span>
                         </div>
                         <div className="flex items-center space-x-1.5 text-slate-600 font-mono text-[11px]">
                           <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -229,29 +518,78 @@ export const UserManager: React.FC<UserManagerProps> = ({
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <span className="font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg text-xs font-mono">
-                          {userRes.length} Tiket
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
-                          Aktif
-                        </span>
+                        {user.status === 'Nonaktif' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1"></span>
+                            Nonaktif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse"></span>
+                            Aktif
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3.5 px-4 sm:px-6 text-right">
                         <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedUser(user)}
-                            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl font-bold text-xs flex items-center space-x-1 transition-all cursor-pointer shadow-2xs"
-                            title="Lihat Detail Akun (Mode Hanya Lihat)"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-sky-600" />
-                            <span>Lihat Detail</span>
-                          </button>
+                          {isOfficer ? (
+                            <>
+                              {/* Tombol Salin Kredensial Petugas */}
+                              <button
+                                type="button"
+                                onClick={() => copyOfficerCredentials(user)}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1 transition-all cursor-pointer border ${
+                                  isCopied
+                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                                    : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-200'
+                                }`}
+                                title="Salin Info Login Petugas untuk WhatsApp"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>Disalin!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Share2 className="w-3.5 h-3.5 text-cyan-600" />
+                                    <span>Salin Kredensial</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Tombol Edit / Reset Password */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditOfficer(user)}
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all cursor-pointer"
+                                title="Ubah Pos Dermaga / Reset Kata Sandi"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Tombol Hapus */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOfficer(user)}
+                                className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all cursor-pointer"
+                                title="Hapus Akun Petugas"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUser(user)}
+                              className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl font-bold text-xs flex items-center space-x-1 transition-all cursor-pointer"
+                              title="Lihat Detail Riwayat Pengguna"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Detail</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -263,11 +601,347 @@ export const UserManager: React.FC<UserManagerProps> = ({
         </div>
       </div>
 
-      {/* Modal Detail Akun Pengguna (Hanya Lihat) */}
+      {/* ================= MODAL TAMBAH AKUN PETUGAS ================= */}
+      {isAddOfficerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            <div className="bg-[#0F2C59] p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-cyan-500 rounded-xl text-white">
+                  <ScanLine className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base leading-tight">Tambah Akun Petugas Baru</h3>
+                  <p className="text-[11px] text-cyan-200">Terbitkan akun petugas gate scanner pelabuhan</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddOfficerModalOpen(false)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateOfficerSubmit} className="p-5 sm:p-6 space-y-4">
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* Nama Lengkap */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Lengkap Petugas <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={officerName}
+                  onChange={(e) => setOfficerName(e.target.value)}
+                  placeholder="Contoh: Budi Santoso, S.Sos"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                  required
+                />
+              </div>
+
+              {/* NIP Petugas */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    NIP / Nomor Induk Petugas
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAutoNip}
+                    className="text-[10px] text-cyan-600 hover:text-cyan-700 font-bold hover:underline cursor-pointer"
+                  >
+                    + Buat NIP Otomatis
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={officerNip}
+                  onChange={(e) => setOfficerNip(e.target.value)}
+                  placeholder="Contoh: NIP-PTG-2026-002"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                />
+              </div>
+
+              {/* Pos Dermaga Penugasan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pos Dermaga Penugasan <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={officerDockId}
+                  onChange={(e) => setOfficerDockId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                >
+                  {docks.map((dock) => (
+                    <option key={dock.id} value={dock.id}>
+                      {dock.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Email & No HP */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Email Resmi Petugas <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={officerEmail}
+                    onChange={(e) => setOfficerEmail(e.target.value)}
+                    placeholder="budi.petugas@kapalku.id"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nomor WhatsApp / HP
+                  </label>
+                  <input
+                    type="tel"
+                    value={officerPhone}
+                    onChange={(e) => setOfficerPhone(e.target.value)}
+                    placeholder="0812-3456-7890"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Kata Sandi Akun */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Kata Sandi Login Petugas <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[10px] text-cyan-600 hover:text-cyan-700 font-bold hover:underline cursor-pointer flex items-center space-x-1"
+                  >
+                    <KeyRound className="w-3 h-3" />
+                    <span>Buat Sandi Acak</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={officerPassword}
+                    onChange={(e) => setOfficerPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-500 block mt-1">
+                  Kata sandi ini yang akan digunakan oleh petugas untuk login di portal scanner.
+                </span>
+              </div>
+
+              <div className="pt-2 flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOfficerModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-md shadow-cyan-600/30 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+                >
+                  {isSubmitting ? (
+                    <span>Menyimpan...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Simpan & Terbitkan Akun</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KREDENSIAL BERHASIL DIBUAT ================= */}
+      {createdOfficerCreds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-150 space-y-4 p-6">
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <h3 className="font-black text-lg text-slate-900">Akun Petugas Berhasil Diterbitkan!</h3>
+              <p className="text-xs text-slate-500">
+                Kredensial login berikut siap diberikan kepada petugas bersangkutan:
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs font-mono">
+              <div className="flex justify-between border-b border-slate-200 pb-1.5 font-sans font-bold text-slate-800">
+                <span>Nama:</span>
+                <span className="text-cyan-800">{createdOfficerCreds.officer.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-slate-500">NIP:</span>
+                <span className="font-bold text-slate-900">{createdOfficerCreds.officer.nip}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-slate-500">Pos Tugas:</span>
+                <span className="font-sans text-slate-800 font-semibold truncate max-w-[200px]">
+                  {createdOfficerCreds.officer.dockName}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-bold text-slate-900">{createdOfficerCreds.officer.email}</span>
+              </div>
+              <div className="flex justify-between pt-0.5">
+                <span className="text-slate-500">Kata Sandi:</span>
+                <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {createdOfficerCreds.rawPassword}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => copyOfficerCredentials(createdOfficerCreds.officer, createdOfficerCreds.rawPassword)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/30 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Salin Lengkap untuk WhatsApp Petugas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreatedOfficerCreds(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                Selesai & Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT / RESET KATA SANDI PETUGAS ================= */}
+      {editingOfficer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            <div className="bg-[#0F2C59] p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Edit3 className="w-5 h-5 text-cyan-400" />
+                <span className="font-extrabold text-sm sm:text-base">Pengaturan Akun Petugas</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOfficer(null)}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateOfficerSubmit} className="p-5 sm:p-6 space-y-4">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="font-bold text-slate-900 text-sm">{editingOfficer.name}</div>
+                <div className="text-xs text-slate-500 font-mono">NIP: {editingOfficer.nip || '-'} • {editingOfficer.email}</div>
+              </div>
+
+              {/* Pos Dermaga */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Pos Dermaga Penugasan
+                </label>
+                <select
+                  value={editDockId}
+                  onChange={(e) => setEditDockId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                >
+                  {docks.map((dock) => (
+                    <option key={dock.id} value={dock.id}>
+                      {dock.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Akun */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Status Keaktifan Petugas
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                >
+                  <option value="Aktif">🟢 Aktif (Bisa Login & Scan)</option>
+                  <option value="Nonaktif">🔴 Nonaktif (Login Diblokir)</option>
+                </select>
+              </div>
+
+              {/* Reset Kata Sandi */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Reset Kata Sandi Baru (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={editNewPassword}
+                  onChange={(e) => setEditNewPassword(e.target.value)}
+                  placeholder="Kosongkan jika tidak ingin mengubah sandi"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-cyan-500 outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingOfficer(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-60"
+                >
+                  {isUpdating ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL DETAIL AKUN PENUMPANG ================= */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
             <div className="bg-[#0F2C59] p-5 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Users className="w-5 h-5 text-sky-400" />
@@ -282,15 +956,13 @@ export const UserManager: React.FC<UserManagerProps> = ({
             </div>
 
             <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              {/* Notice Hanya Lihat */}
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center space-x-2.5 text-xs text-amber-900">
                 <Lock className="w-4 h-4 text-amber-600 shrink-0" />
                 <span className="text-[11px] leading-tight">
-                  <strong>Akses Terbatas:</strong> Akun ini hanya dapat diubah & diatur oleh pengguna sendiri. Anda sedang melihat dalam mode <em>Read-Only</em>.
+                  <strong>Akses Terbatas:</strong> Akun penumpang hanya dapat diubah secara mandiri oleh pengguna. Anda melihat dalam mode <em>Read-Only</em>.
                 </span>
               </div>
 
-              {/* Profile Card */}
               <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                 <img
                   src={selectedUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.name}`}
@@ -300,20 +972,15 @@ export const UserManager: React.FC<UserManagerProps> = ({
                 <div className="space-y-1">
                   <h3 className="font-black text-slate-900 text-base">{selectedUser.name}</h3>
                   <div className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800">
-                    {selectedUser.role === 'admin'
-                      ? '🛡️ Administrator Pelabuhan'
-                      : selectedUser.role === 'officer'
-                      ? '🔍 Petugas Scanner Gate'
-                      : '👥 Penumpang / Pengguna'}
+                    👥 Akun Penumpang Terdaftar
                   </div>
                   <div className="text-[11px] font-mono text-slate-400">ID Pengguna: {selectedUser.id}</div>
                 </div>
               </div>
 
-              {/* Data Detail Fields (Disabled / Read-Only) */}
               <div className="space-y-3 text-xs">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Nama Lengkap Terdaftar</label>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Nama Lengkap</label>
                   <input
                     type="text"
                     value={selectedUser.name}
@@ -325,7 +992,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Alamat Email</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Email</label>
                     <input
                       type="text"
                       value={selectedUser.email || '-'}
@@ -336,7 +1003,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Nomor Handphone / WhatsApp</label>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">Nomor WhatsApp / HP</label>
                     <input
                       type="text"
                       value={selectedUser.phone || '-'}
@@ -346,16 +1013,6 @@ export const UserManager: React.FC<UserManagerProps> = ({
                     />
                   </div>
                 </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-500 block mb-1">Status Keamanan Sandi Akun</label>
-                  <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-between text-slate-700">
-                    <span className="font-mono text-xs">•••••••••••••• (Terenkripsi)</span>
-                    <span className="text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                      Hanya Pengguna yang Dapat Mengganti
-                    </span>
-                  </div>
-                </div>
               </div>
 
               {/* Riwayat Reservasi Tiket Pengguna */}
@@ -363,7 +1020,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
                 <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                   <span className="flex items-center space-x-1.5">
                     <Ticket className="w-4 h-4 text-sky-600" />
-                    <span>Riwayat Tiket ({getUserReservations(selectedUser).length})</span>
+                    <span>Riwayat Pemesanan Tiket ({getUserReservations(selectedUser).length})</span>
                   </span>
                 </div>
 
@@ -412,7 +1069,6 @@ export const UserManager: React.FC<UserManagerProps> = ({
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
               <span className="text-[11px] text-slate-500 font-medium">
                 Admin hanya berwenang untuk memeriksa data manifes.

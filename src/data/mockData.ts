@@ -12,7 +12,10 @@ export const INITIAL_USERS: User[] = [
     email: 'admin@kapalku.id',
     phone: '0811-4090-265',
     role: 'admin',
+    password: 'admin123',
+    status: 'Aktif',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    createdAt: '01/01/2026',
   },
   {
     id: 'usr_officer_1',
@@ -20,7 +23,13 @@ export const INITIAL_USERS: User[] = [
     email: 'petugas@kapalku.id',
     phone: '0812-4211-3344',
     role: 'officer',
+    password: 'petugas123',
+    nip: 'NIP-PTG-001',
+    dockId: 'dock_kasipute',
+    dockName: 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+    status: 'Aktif',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    createdAt: '01/01/2026',
   },
   {
     id: 'usr_passenger_1',
@@ -28,7 +37,10 @@ export const INITIAL_USERS: User[] = [
     email: 'penumpang@kapalku.id',
     phone: '0813-5566-7788',
     role: 'passenger',
+    password: 'penumpang123',
+    status: 'Aktif',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    createdAt: '01/01/2026',
   },
 ];
 

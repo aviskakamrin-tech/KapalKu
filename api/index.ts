@@ -52,7 +52,7 @@ app.get('/api/users', (_req: Request, res: Response) => {
 app.post('/api/auth/login', (req: Request, res: Response) => {
   const { identifier, password, role } = req.body;
   if (!identifier) {
-    return res.status(400).json({ error: 'Nama, email, atau nomor HP wajib diisi.' });
+    return res.status(400).json({ error: 'Nama, email, nomor HP, atau NIP wajib diisi.' });
   }
 
   const cleanId = String(identifier).trim().toLowerCase();
@@ -60,31 +60,53 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     (u) =>
       u.email.toLowerCase() === cleanId ||
       u.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
+      (u.nip && u.nip.toLowerCase() === cleanId) ||
       u.name.toLowerCase() === cleanId
   );
 
-  if (matchedUser) {
-    return res.json({
-      success: true,
-      token: `token_${Date.now()}`,
-      user: matchedUser,
+  if (!matchedUser) {
+    if (role === 'officer') {
+      return res.status(401).json({
+        error: 'Akun petugas tidak ditemukan. Petugas tidak dapat mendaftar sendiri; akun dan password harus dibuatkan oleh Administrator Pelabuhan.',
+      });
+    }
+    return res.status(401).json({
+      error: 'Akun belum terdaftar. Silakan lakukan pendaftaran akun terlebih dahulu sebelum login.',
     });
   }
 
-  // Create temporary session user if not found
-  const newUser: User = {
-    id: `usr_${Date.now()}`,
-    name: identifier,
-    email: identifier.includes('@') ? identifier : `${identifier}@kapalku.id`,
-    phone: identifier.startsWith('08') ? identifier : '0812-3456-7890',
-    role: (role as any) || 'passenger',
-  };
-  users.push(newUser);
+  if (matchedUser.password && password && matchedUser.password !== password) {
+    return res.status(401).json({ error: 'Kata sandi salah. Silakan periksa kembali.' });
+  }
+
   return res.json({
     success: true,
-    token: `token_${Date.now()}`,
-    user: newUser,
+    token: `token_${matchedUser.id}_${Date.now()}`,
+    user: matchedUser,
   });
+});
+
+app.post('/api/officers', (req: Request, res: Response) => {
+  const { name, email, phone, password, nip, dockId, dockName } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Nama, email, dan kata sandi wajib diisi.' });
+  }
+  const newOfficer: User = {
+    id: `usr_ptg_${Date.now()}`,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    phone: phone?.trim() || '0812-4211-3344',
+    role: 'officer',
+    password: password,
+    nip: nip?.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
+    dockId: dockId || 'dock_kasipute',
+    dockName: dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+    status: 'Aktif',
+    avatar: `https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80`,
+    createdAt: new Date().toLocaleDateString('id-ID'),
+  };
+  users.unshift(newOfficer);
+  res.status(201).json(newOfficer);
 });
 
 // Docks

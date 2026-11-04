@@ -447,15 +447,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ? 'bg-[#0F2C59] text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
-          title="Data Akun Pengguna (Hanya Lihat / Read-Only)"
+          title="Kelola Akun Petugas Gate & Direktori Pengguna"
         >
-          <Users className="w-4 h-4 text-sky-400" />
-          <span>Akun Pengguna</span>
-          <span className="ml-1 px-1.5 py-0.2 bg-sky-500/30 text-sky-200 text-[10px] rounded-full font-mono">
+          <Users className="w-4 h-4 text-cyan-400" />
+          <span>Kelola Akun Petugas & Pengguna</span>
+          <span className="ml-1 px-1.5 py-0.2 bg-cyan-500/30 text-cyan-200 text-[10px] rounded-full font-mono">
             {users.length}
           </span>
-          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.2 rounded font-bold">
-            Hanya Lihat
+          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-1.5 py-0.2 rounded font-bold">
+            + Tambah Petugas
           </span>
         </button>
       </div>
@@ -514,6 +514,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {adminTab === 'users' && (
         <UserManager
           users={users}
+          docks={docks}
           reservations={reservations}
           onRefreshData={onRefreshData}
         />

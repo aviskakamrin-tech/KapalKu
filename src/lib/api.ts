@@ -222,7 +222,7 @@ export const api = {
   login: async (data: { identifier: string; password?: string; role?: string }): Promise<AuthResponse> => {
     const cleanId = String(data.identifier || '').trim();
     if (!cleanId) {
-      throw new Error('Nama, email, atau nomor HP wajib diisi.');
+      throw new Error('Nama, email, nomor HP, atau NIP wajib diisi.');
     }
 
     return safeFetch(
@@ -238,55 +238,73 @@ export const api = {
         const cleanIdLower = cleanId.toLowerCase();
         const cleanPhone = cleanId.replace(/[^0-9]/g, '');
 
-        // 1. Find existing
-        let matchedUser = localUsers.find(
-          (u) =>
-            u.email.toLowerCase() === cleanIdLower ||
-            (cleanPhone && u.phone.replace(/[^0-9]/g, '') === cleanPhone) ||
-            u.name.toLowerCase() === cleanIdLower
-        );
+        // Make sure default accounts have fallback passwords if missing in legacy storage
+        localUsers = localUsers.map((u) => {
+          if (!u.password) {
+            if (u.role === 'admin') return { ...u, password: 'admin123', status: u.status || 'Aktif' };
+            if (u.role === 'officer') return { ...u, password: 'petugas123', nip: u.nip || 'NIP-PTG-001', status: u.status || 'Aktif' };
+            if (u.role === 'passenger') return { ...u, password: 'penumpang123', status: u.status || 'Aktif' };
+          }
+          return u;
+        });
+        setLocal(STORAGE_KEYS.USERS, localUsers);
 
-        // 2. Partial match
+        // 1. Find existing user by email, phone, NIP, or name
+        let matchedUser = localUsers.find((u) => {
+          const matchEmail = u.email && u.email.toLowerCase() === cleanIdLower;
+          const matchPhone = cleanPhone && u.phone && u.phone.replace(/[^0-9]/g, '') === cleanPhone;
+          const matchNip = u.nip && u.nip.toLowerCase() === cleanIdLower;
+          const matchName = u.name && u.name.toLowerCase() === cleanIdLower;
+          return matchEmail || matchPhone || matchNip || matchName;
+        });
+
+        // 2. Partial match fallback (e.g. username before @)
         if (!matchedUser) {
           matchedUser = localUsers.find(
             (u) =>
-              u.name.toLowerCase().includes(cleanIdLower) ||
-              (u.email && u.email.toLowerCase().includes(cleanIdLower))
+              (u.nip && u.nip.toLowerCase().includes(cleanIdLower)) ||
+              (u.email && u.email.toLowerCase().startsWith(cleanIdLower)) ||
+              (u.name && u.name.toLowerCase() === cleanIdLower)
           );
         }
 
-        // 3. Create if not found
+        // 3. REJECT UNREGISTERED USERS - TIDAK BISA LOGIN TANPA MENDAFTARKAN AKUN
         if (!matchedUser) {
-          let derivedName = cleanId;
-          if (cleanId.includes('@')) {
-            const prefix = cleanId.split('@')[0];
-            derivedName = prefix
-              .replace(/[._-]/g, ' ')
-              .replace(/\b\w/g, (c: string) => c.toUpperCase());
-          } else if (cleanId.match(/^[0-9+]/)) {
-            derivedName = `Penumpang ${cleanId.slice(-4)}`;
+          if (data.role === 'officer') {
+            throw new Error(
+              'Akun Petugas tidak ditemukan. Petugas tidak dapat mendaftar mandiri; akun dan kata sandi harus dibuatkan oleh Administrator Pelabuhan terlebih dahulu.'
+            );
           }
-
-          matchedUser = {
-            id: `usr_${Date.now()}`,
-            name: derivedName,
-            email: cleanId.includes('@') ? cleanIdLower : `${cleanIdLower.replace(/[^a-z0-9]/g, '') || 'pengguna'}@kapalku.id`,
-            phone: cleanId.match(/^[0-9+]/) ? cleanId : '0812-0000-0000',
-            role: (data.role as any) || 'passenger',
-            avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-          };
-
-          localUsers = [matchedUser, ...localUsers];
-          setLocal(STORAGE_KEYS.USERS, localUsers);
+          if (data.role === 'admin') {
+            throw new Error('Akun Administrator tidak ditemukan. Pastikan email atau kredensial benar.');
+          }
+          throw new Error(
+            'Akun belum terdaftar. Silakan lakukan pendaftaran akun baru pada tab "Daftar Akun Baru" terlebih dahulu sebelum login.'
+          );
         }
 
-        // If role was explicitly specified in request and existing user role differs, update it
-        if (data.role && matchedUser.role !== (data.role as any)) {
-          matchedUser = { ...matchedUser, role: data.role as any };
-          const uIdx = localUsers.findIndex((u) => u.id === matchedUser?.id);
-          if (uIdx !== -1) {
-            localUsers[uIdx] = matchedUser;
-            setLocal(STORAGE_KEYS.USERS, localUsers);
+        // 4. Role Authorization Checking
+        if (data.role === 'officer' && matchedUser.role !== 'officer' && matchedUser.role !== 'admin') {
+          throw new Error(
+            'Akses Ditolak: Akun ini terdaftar sebagai Penumpang. Portal ini khusus untuk Petugas Gate yang memiliki NIP dan akun resmi dari Administrator.'
+          );
+        }
+        if (data.role === 'admin' && matchedUser.role !== 'admin') {
+          throw new Error('Akses Ditolak: Akun ini tidak memiliki hak akses sebagai Administrator Pelabuhan.');
+        }
+
+        // 5. Account Status Check
+        if (matchedUser.status === 'Nonaktif') {
+          throw new Error('Akun ini telah dinonaktifkan oleh Administrator Pelabuhan. Hubungi pihak pengelola.');
+        }
+
+        // 6. Password Verification
+        if (matchedUser.password) {
+          if (!data.password) {
+            throw new Error('Silakan masukkan kata sandi Anda untuk melanjutkan login.');
+          }
+          if (data.password !== matchedUser.password) {
+            throw new Error('Kata sandi yang Anda masukkan salah. Silakan periksa kembali.');
           }
         }
 
@@ -295,7 +313,7 @@ export const api = {
         return {
           user: matchedUser,
           token: `token_${matchedUser.id}_${Date.now()}`,
-          message: `Selamat datang di KapalKu, ${matchedUser.name}!`,
+          message: `Selamat datang kembali di KapalKu, ${matchedUser.name}!`,
         };
       }
     );
@@ -308,9 +326,20 @@ export const api = {
     role?: string;
     password?: string;
   }): Promise<AuthResponse> => {
-    const { name, email, phone } = data;
+    const { name, email, phone, role } = data;
     if (!name || (!email && !phone)) {
       throw new Error('Nama lengkap dan Email atau Nomor HP wajib diisi.');
+    }
+
+    // PETUGAS TIDAK BISA MENDAFTAR MANDIRI
+    if (role === 'officer') {
+      throw new Error(
+        'Pendaftaran mandiri untuk akun Petugas dinonaktifkan. Seluruh akun Petugas Gate wajib diterbitkan dan didaftarkan langsung oleh Administrator Pelabuhan.'
+      );
+    }
+
+    if (role === 'admin') {
+      throw new Error('Pendaftaran akun Administrator baru harus melalui persetujuan Superadmin.');
     }
 
     return safeFetch(
@@ -330,11 +359,9 @@ export const api = {
         );
 
         if (existingUser) {
-          return {
-            user: existingUser,
-            token: `token_${existingUser.id}_${Date.now()}`,
-            message: `Akun sudah terdaftar. Selamat datang kembali, ${existingUser.name}!`,
-          };
+          throw new Error(
+            'Email atau nomor HP tersebut sudah terdaftar. Silakan beralih ke tab "Masuk Aku" untuk login.'
+          );
         }
 
         const newUser: User = {
@@ -342,8 +369,11 @@ export const api = {
           name: name.trim(),
           email: email ? email.trim().toLowerCase() : `${phone?.replace(/[^0-9]/g, '') || 'user'}@kapalku.id`,
           phone: phone ? phone.trim() : '0812-0000-0000',
-          role: (data.role as any) || 'passenger',
+          role: 'passenger', // Hanya boleh daftar sebagai penumpang
+          password: data.password || 'penumpang123',
+          status: 'Aktif',
           avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+          createdAt: new Date().toLocaleDateString('id-ID'),
         };
 
         localUsers = [newUser, ...localUsers];
@@ -354,7 +384,7 @@ export const api = {
           id: `notif_${Date.now()}`,
           userId: newUser.id,
           title: '🎉 Selamat Datang di KapalKu',
-          message: `Halo ${newUser.name}, akun penumpang Anda telah aktif. Nikmati kemudahan jadwal, live map kapal, dan tiket resmi.`,
+          message: `Halo ${newUser.name}, akun penumpang Anda telah aktif. Nikmati kemudahan info jadwal, live map kapal, dan tiket resmi.`,
           type: 'ship',
           read: false,
           createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
@@ -369,6 +399,125 @@ export const api = {
           token: `token_${newUser.id}_${Date.now()}`,
           message: `Pendaftaran berhasil! Selamat datang di KapalKu, ${newUser.name}`,
         };
+      }
+    );
+  },
+
+  // ================= ADMIN: KELOLA AKUN PETUGAS =================
+  createOfficerAccount: async (data: {
+    name: string;
+    nip?: string;
+    email: string;
+    phone: string;
+    password: string;
+    dockId?: string;
+    dockName?: string;
+  }): Promise<User> => {
+    const { name, email, phone, password } = data;
+    if (!name.trim()) throw new Error('Nama lengkap petugas wajib diisi.');
+    if (!email.trim()) throw new Error('Email resmi petugas wajib diisi.');
+    if (!password || password.length < 6) throw new Error('Kata sandi petugas minimal 6 karakter.');
+
+    return safeFetch(
+      '/api/officers',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      },
+      () => {
+        localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+
+        // Check duplicates
+        const existing = localUsers.find(
+          (u) =>
+            u.email.toLowerCase() === email.trim().toLowerCase() ||
+            (data.nip && u.nip && u.nip.toLowerCase() === data.nip.trim().toLowerCase())
+        );
+
+        if (existing) {
+          throw new Error('Email atau NIP petugas tersebut sudah digunakan pada sistem.');
+        }
+
+        const newOfficer: User = {
+          id: `usr_ptg_${Date.now()}`,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() || '0812-4211-3344',
+          role: 'officer',
+          password: password,
+          nip: data.nip?.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
+          dockId: data.dockId || 'dock_kasipute',
+          dockName: data.dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+          status: 'Aktif',
+          avatar: `https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80`,
+          createdAt: new Date().toLocaleDateString('id-ID'),
+        };
+
+        localUsers = [newOfficer, ...localUsers];
+        setLocal(STORAGE_KEYS.USERS, localUsers);
+
+        addAuditLog(
+          'Administrator',
+          'ADD_OFFICER_ACCOUNT',
+          `Admin menambahkan akun Petugas Gate baru: ${newOfficer.name} (${newOfficer.nip}) di pos ${newOfficer.dockName}`
+        );
+
+        return newOfficer;
+      }
+    );
+  },
+
+  updateOfficerAccount: async (id: string, data: Partial<User>): Promise<User> => {
+    return safeFetch(
+      `/api/officers/${id}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      },
+      () => {
+        localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+        const idx = localUsers.findIndex((u) => u.id === id);
+        if (idx === -1) throw new Error('Akun petugas tidak ditemukan.');
+
+        localUsers[idx] = {
+          ...localUsers[idx],
+          ...data,
+          role: 'officer', // Pastikan role tetap officer
+        };
+        setLocal(STORAGE_KEYS.USERS, localUsers);
+
+        addAuditLog(
+          'Administrator',
+          'UPDATE_OFFICER_ACCOUNT',
+          `Admin memperbarui akun Petugas: ${localUsers[idx].name} (NIP: ${localUsers[idx].nip || '-'})`
+        );
+
+        return localUsers[idx];
+      }
+    );
+  },
+
+  deleteOfficerAccount: async (id: string): Promise<void> => {
+    return safeFetch(
+      `/api/officers/${id}`,
+      {
+        method: 'DELETE',
+      },
+      () => {
+        localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+        const officer = localUsers.find((u) => u.id === id);
+        localUsers = localUsers.filter((u) => u.id !== id);
+        setLocal(STORAGE_KEYS.USERS, localUsers);
+
+        if (officer) {
+          addAuditLog(
+            'Administrator',
+            'DELETE_OFFICER_ACCOUNT',
+            `Admin menghapus akun Petugas: ${officer.name} (NIP: ${officer.nip || '-'})`
+          );
+        }
       }
     );
   },

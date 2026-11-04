@@ -11,6 +11,12 @@ export interface User {
   phone: string;
   role: Role;
   avatar?: string;
+  password?: string;
+  nip?: string;
+  dockId?: string;
+  dockName?: string;
+  status?: 'Aktif' | 'Nonaktif';
+  createdAt?: string;
 }
 
 export interface AuthResponse {

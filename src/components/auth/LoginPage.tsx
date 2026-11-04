@@ -82,8 +82,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       title: 'KapalKu Petugas Lapangan',
       subtitle: 'Scanner Barcode Boarding, Gate & Validasi Manifes',
       loginBtnText: 'Masuk sebagai Petugas',
-      registerBtnText: 'Daftar Akun Petugas',
-      placeholder: 'petugas@kapalku.id atau nama petugas',
+      registerBtnText: 'Akun Diterbitkan Admin',
+      placeholder: 'NIP Petugas (cth: NIP-PTG-001) atau email resmi',
       accentColor: 'cyan',
       submitBtnClass: 'bg-cyan-600 hover:bg-cyan-700 shadow-cyan-600/30',
     },
@@ -105,7 +105,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginIdentifier.trim()) {
-      setErrorMessage('Silakan masukkan nama lengkap, email, atau nomor HP Anda.');
+      setErrorMessage(
+        activeRole === 'officer'
+          ? 'Silakan masukkan NIP Petugas atau email resmi Anda.'
+          : 'Silakan masukkan nama lengkap, email, atau nomor HP Anda.'
+      );
+      return;
+    }
+
+    if ((activeRole === 'officer' || activeRole === 'admin') && !loginPassword) {
+      setErrorMessage('Kata sandi wajib diisi untuk masuk.');
       return;
     }
 
@@ -225,46 +234,84 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
 
-        {/* Tab Switcher: Masuk Akun vs Daftar Akun */}
+        {/* Tab Switcher: Masuk Akun vs Daftar Akun (Hanya untuk Penumpang) */}
         <div className="p-6 sm:p-7 pt-5">
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('login');
-                setErrorMessage('');
-                setSuccessMessage('');
-              }}
-              className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                authMode === 'login'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Masuk Akun
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('register');
-                setErrorMessage('');
-                setSuccessMessage('');
-              }}
-              className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
-                authMode === 'register'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Daftar Akun Baru
-            </button>
-          </div>
+          {activeRole === 'passenger' ? (
+            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
+                className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                  authMode === 'login'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Masuk Akun
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('register');
+                  setErrorMessage('');
+                  setSuccessMessage('');
+                }}
+                className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer ${
+                  authMode === 'register'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Daftar Akun Baru
+              </button>
+            </div>
+          ) : activeRole === 'officer' ? (
+            <div className="mb-5 p-4 bg-cyan-50/90 border border-cyan-200/90 rounded-2xl text-xs text-cyan-950 flex items-start space-x-3 shadow-2xs">
+              <ShieldCheck className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-extrabold text-cyan-950 block text-xs sm:text-sm">
+                  Otorisasi Petugas: Akun Dikelola Administrator
+                </span>
+                <p className="text-[11px] text-cyan-900 leading-relaxed">
+                  Petugas <strong>tidak dapat membuat akun sendiri</strong>. Seluruh akun dan kata sandi petugas gate diterbitkan langsung oleh <strong>Administrator Pelabuhan</strong>. Silakan masukkan NIP atau Email Resmi serta kata sandi yang telah diberikan oleh Admin.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-5 p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs text-indigo-950 flex items-start space-x-2.5">
+              <ShieldCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-indigo-950">Portal Khusus Administrator</span>
+                <span className="text-[11px] text-indigo-800">
+                  Akses otentikasi aman untuk pengelola tarif, rute, armada, dan akun petugas pelabuhan.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Alert Messages */}
           {errorMessage && (
             <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs flex items-start space-x-2.5">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>{errorMessage}</div>
+              <div className="space-y-1.5 flex-1">
+                <div className="font-semibold">{errorMessage}</div>
+                {activeRole === 'passenger' && errorMessage.toLowerCase().includes('belum terdaftar') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register');
+                      setErrorMessage('');
+                    }}
+                    className="inline-flex items-center space-x-1 font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    <span>→ Klik di Sini untuk Mendaftar Akun Baru</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -280,7 +327,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Email, Nomor WhatsApp / HP, atau Nama Lengkap
+                  {activeRole === 'officer'
+                    ? 'NIP Petugas atau Email Resmi Petugas'
+                    : activeRole === 'admin'
+                    ? 'Email Administrator'
+                    : 'Email, Nomor WhatsApp / HP, atau Nama Lengkap'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -300,19 +351,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Kata Sandi
+                    Kata Sandi {activeRole === 'officer' && <span className="text-red-500">*</span>}
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotInput(loginIdentifier.trim());
-                      setForgotSuccess(false);
-                      setShowForgotModal(true);
-                    }}
-                    className="text-xs text-sky-600 hover:text-sky-700 hover:underline font-semibold cursor-pointer"
-                  >
-                    Lupa kata sandi?
-                  </button>
+                  {activeRole === 'passenger' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotInput(loginIdentifier.trim());
+                        setForgotSuccess(false);
+                        setShowForgotModal(true);
+                      }}
+                      className="text-xs text-sky-600 hover:text-sky-700 hover:underline font-semibold cursor-pointer"
+                    >
+                      Lupa kata sandi?
+                    </button>
+                  )}
+                  {activeRole === 'officer' && (
+                    <span className="text-[10px] text-cyan-700 font-medium">
+                      Diberikan oleh Admin Pelabuhan
+                    </span>
+                  )}
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -322,8 +380,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     type={showPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Masukkan kata sandi Anda"
+                    placeholder={
+                      activeRole === 'officer'
+                        ? 'Masukkan kata sandi yang dibuat oleh Admin'
+                        : 'Masukkan kata sandi Anda'
+                    }
                     className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none transition-all"
+                    required={activeRole === 'officer' || activeRole === 'admin'}
                   />
                   <button
                     type="button"
