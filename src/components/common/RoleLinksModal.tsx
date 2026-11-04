@@ -64,12 +64,12 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
       deviceIcon: Laptop,
       targetUser: 'Staf Operasional Pelabuhan, Manajer Tarif & Supervisor',
       features: [
+        'Terbitkan & kelola akun petugas gate dermaga',
         'Kelola tarif tiket penumpang & kendaraan',
         'Tambah & perbarui rute pelayaran antar pulau',
-        'Atur jadwal keberangkatan & status kapal',
         'Rekapitulasi manifes tiket & audit operasional',
       ],
-      sampleLogin: 'admin@kapalku.id / password123',
+      sampleLogin: 'user: admin / password: admin1',
     },
     {
       key: 'officer',
@@ -86,12 +86,12 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
       deviceIcon: Smartphone,
       targetUser: 'Petugas Pintu Masuk Dermaga, Checker Boarding & Lapangan',
       features: [
+        'Khusus akun resmi yang diterbitkan oleh Admin',
         'Pemindai kamera QR / Barcode tiket realtime',
         'Validasi keaslian e-ticket & cek status boarding',
-        'Cek status kuota penumpang kapal sebelum berangkat',
         'Tampilan ramah layar sentuh HP / Tablet lapangan',
       ],
-      sampleLogin: 'petugas@kapalku.id / password123',
+      sampleLogin: 'petugas@kapalku.id (NIP: NIP-PTG-001) / petugas123',
     },
     {
       key: 'passenger',
@@ -108,12 +108,12 @@ export const RoleLinksModal: React.FC<RoleLinksModalProps> = ({
       deviceIcon: Globe,
       targetUser: 'Masyarakat Umum, Wisatawan & Penumpang Kapal',
       features: [
+        'Wajib daftar akun baru terlebih dahulu sebelum login',
         'Cari jadwal keberangkatan kapal antar pelabuhan',
         'Pemesanan tiket online resmi & cetak e-ticket QR',
         'Live tracking radar posisi kapal (AIS)',
-        'Informasi prakiraan cuaca & gelombang laut BMKG',
       ],
-      sampleLogin: 'penumpang@kapalku.id / password123 (atau daftar akun)',
+      sampleLogin: 'penumpang@kapalku.id / penumpang123 (atau daftar akun baru)',
     },
   ];
 

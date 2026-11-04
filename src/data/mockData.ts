@@ -12,7 +12,7 @@ export const INITIAL_USERS: User[] = [
     email: 'admin@kapalku.id',
     phone: '0811-4090-265',
     role: 'admin',
-    password: 'admin123',
+    password: 'admin1',
     status: 'Aktif',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
     createdAt: '01/01/2026',

@@ -56,6 +56,35 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   }
 
   const cleanId = String(identifier).trim().toLowerCase();
+
+  // KHUSUS LOGIN ADMIN: Kredensial Tetap user: admin, password: admin1
+  if (role === 'admin' || cleanId === 'admin' || cleanId === 'admin@kapalku.id') {
+    if (cleanId !== 'admin' && cleanId !== 'admin@kapalku.id') {
+      return res.status(401).json({ error: 'Username Administrator salah. Gunakan username tetap: admin' });
+    }
+    if (password !== 'admin1') {
+      return res.status(401).json({ error: 'Kata sandi administrator salah. Gunakan password tetap: admin1' });
+    }
+    let adminUser = users.find((u) => u.role === 'admin');
+    if (!adminUser) {
+      adminUser = {
+        id: 'usr_admin_1',
+        name: 'Administrator Pelabuhan',
+        email: 'admin@kapalku.id',
+        phone: '0811-4090-265',
+        role: 'admin',
+        password: 'admin1',
+        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      };
+      users.unshift(adminUser);
+    }
+    return res.json({
+      success: true,
+      token: `token_${adminUser.id}_${Date.now()}`,
+      user: adminUser,
+    });
+  }
+
   const matchedUser = users.find(
     (u) =>
       u.email.toLowerCase() === cleanId ||

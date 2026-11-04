@@ -438,6 +438,37 @@ async function startServer() {
     const cleanId = String(identifier).trim();
     const cleanIdLower = cleanId.toLowerCase();
 
+    // KHUSUS LOGIN ADMIN: Kredensial Tetap user: admin, password: admin1
+    if (role === 'admin' || cleanIdLower === 'admin' || cleanIdLower === 'admin@kapalku.id') {
+      if (cleanIdLower !== 'admin' && cleanIdLower !== 'admin@kapalku.id') {
+        return res.status(401).json({ error: 'Username Administrator salah. Gunakan username tetap: admin' });
+      }
+      if (password !== 'admin1') {
+        return res.status(401).json({ error: 'Kata sandi administrator salah. Gunakan password tetap: admin1' });
+      }
+      let adminUser = users.find((u) => u.role === 'admin');
+      if (!adminUser) {
+        adminUser = {
+          id: 'usr_admin_1',
+          name: 'Administrator Pelabuhan',
+          email: 'admin@kapalku.id',
+          phone: '0811-4090-265',
+          role: 'admin',
+          password: 'admin1',
+          avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+        };
+        users.unshift(adminUser);
+      } else {
+        adminUser.password = 'admin1';
+      }
+      addAuditLog('Administrator', 'admin', 'USER_LOGIN', 'Login Administrator Utama (user: admin)');
+      return res.json({
+        user: adminUser,
+        token: `token_${adminUser.id}_${Date.now()}`,
+        message: 'Selamat datang kembali, Administrator Pelabuhan!',
+      });
+    }
+
     // 1. Direct search by email, phone, NIP, or full name
     let matchedUser = users.find(
       (u) =>

@@ -62,15 +62,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
   const roleMeta = {
     admin: {
-      badge: 'PORTAL LOGIN ADMINISTRATOR',
+      badge: 'LOGIN RESMI ADMINISTRATOR',
       badgeClass: 'bg-indigo-400/20 border-indigo-400/40 text-indigo-200',
       iconBg: 'bg-indigo-600 shadow-indigo-600/40',
       icon: <SlidersHorizontal className="w-6 h-6 text-white" />,
       title: 'KapalKu Administrator',
-      subtitle: 'Pengelolaan Tarif, Rute, Armada & Jadwal Pelayaran',
+      subtitle: 'Kredensial Tetap: user: admin | password: admin1',
       loginBtnText: 'Masuk sebagai Admin',
-      registerBtnText: 'Daftar Akun Admin',
-      placeholder: 'admin@kapalku.id atau nama admin',
+      registerBtnText: 'Akun Khusus Admin',
+      placeholder: 'admin',
       accentColor: 'indigo',
       submitBtnClass: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30',
     },
@@ -282,13 +282,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </div>
             </div>
           ) : (
-            <div className="mb-5 p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs text-indigo-950 flex items-start space-x-2.5">
+            <div className="mb-5 p-4 bg-indigo-50/90 border border-indigo-200/90 rounded-2xl text-xs text-indigo-950 flex items-start space-x-3 shadow-2xs">
               <ShieldCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block text-indigo-950">Portal Khusus Administrator</span>
-                <span className="text-[11px] text-indigo-800">
-                  Akses otentikasi aman untuk pengelola tarif, rute, armada, dan akun petugas pelabuhan.
+              <div className="space-y-1.5 flex-1">
+                <span className="font-extrabold text-indigo-950 block text-xs sm:text-sm">
+                  Kredensial Akses Tetap Administrator
                 </span>
+                <p className="text-[11px] text-indigo-900 leading-relaxed">
+                  Admin <strong>tidak perlu mendaftarkan akun</strong>. Cukup gunakan satu username dan kata sandi tetap berikut untuk masuk:
+                </p>
+                <div className="pt-0.5 flex flex-wrap gap-2 text-xs font-mono">
+                  <span className="bg-white px-2.5 py-1 rounded-xl border border-indigo-200 text-indigo-950 font-bold shadow-2xs flex items-center space-x-1">
+                    <span className="text-slate-400 font-sans">Username:</span>
+                    <span className="text-indigo-700">admin</span>
+                  </span>
+                  <span className="bg-white px-2.5 py-1 rounded-xl border border-indigo-200 text-indigo-950 font-bold shadow-2xs flex items-center space-x-1">
+                    <span className="text-slate-400 font-sans">Password:</span>
+                    <span className="text-indigo-700">admin1</span>
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -330,7 +342,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   {activeRole === 'officer'
                     ? 'NIP Petugas atau Email Resmi Petugas'
                     : activeRole === 'admin'
-                    ? 'Email Administrator'
+                    ? 'Username Administrator (Tetap: admin)'
                     : 'Email, Nomor WhatsApp / HP, atau Nama Lengkap'}
                 </label>
                 <div className="relative">
@@ -341,7 +353,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     type="text"
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder={roleMeta.placeholder}
+                    placeholder={
+                      activeRole === 'admin'
+                        ? 'admin'
+                        : roleMeta.placeholder
+                    }
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 outline-none transition-all"
                     required
                   />
@@ -351,7 +367,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Kata Sandi {activeRole === 'officer' && <span className="text-red-500">*</span>}
+                    Kata Sandi {(activeRole === 'officer' || activeRole === 'admin') && <span className="text-red-500">*</span>}
                   </label>
                   {activeRole === 'passenger' && (
                     <button
@@ -371,6 +387,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       Diberikan oleh Admin Pelabuhan
                     </span>
                   )}
+                  {activeRole === 'admin' && (
+                    <span className="text-[10px] text-indigo-700 font-semibold font-mono">
+                      Password tetap: admin1
+                    </span>
+                  )}
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -381,7 +402,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder={
-                      activeRole === 'officer'
+                      activeRole === 'admin'
+                        ? 'admin1'
+                        : activeRole === 'officer'
                         ? 'Masukkan kata sandi yang dibuat oleh Admin'
                         : 'Masukkan kata sandi Anda'
                     }

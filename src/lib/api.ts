@@ -238,10 +238,48 @@ export const api = {
         const cleanIdLower = cleanId.toLowerCase();
         const cleanPhone = cleanId.replace(/[^0-9]/g, '');
 
+        // KHUSUS LOGIN ADMIN: Kredensial Tetap user: admin, password: admin1 (Tanpa Perlu Daftar)
+        if (data.role === 'admin' || cleanIdLower === 'admin' || cleanIdLower === 'admin@kapalku.id') {
+          if (cleanIdLower !== 'admin' && cleanIdLower !== 'admin@kapalku.id') {
+            throw new Error('Username Administrator salah. Gunakan username tetap: admin');
+          }
+          if (data.password !== 'admin1') {
+            throw new Error('Kata sandi administrator salah. Gunakan password tetap: admin1');
+          }
+
+          let adminUser = localUsers.find((u) => u.role === 'admin');
+          if (!adminUser) {
+            adminUser = {
+              id: 'usr_admin_1',
+              name: 'Administrator Pelabuhan',
+              email: 'admin@kapalku.id',
+              phone: '0811-4090-265',
+              role: 'admin',
+              password: 'admin1',
+              status: 'Aktif',
+              avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+              createdAt: '01/01/2026',
+            };
+            localUsers = [adminUser, ...localUsers];
+          } else {
+            adminUser.password = 'admin1';
+            adminUser.status = 'Aktif';
+          }
+          setLocal(STORAGE_KEYS.USERS, localUsers);
+
+          addAuditLog('Administrator', 'USER_LOGIN', 'Login sukses Administrator Utama (user: admin)');
+
+          return {
+            user: adminUser,
+            token: `token_${adminUser.id}_${Date.now()}`,
+            message: 'Selamat datang kembali, Administrator Pelabuhan!',
+          };
+        }
+
         // Make sure default accounts have fallback passwords if missing in legacy storage
         localUsers = localUsers.map((u) => {
           if (!u.password) {
-            if (u.role === 'admin') return { ...u, password: 'admin123', status: u.status || 'Aktif' };
+            if (u.role === 'admin') return { ...u, password: 'admin1', status: u.status || 'Aktif' };
             if (u.role === 'officer') return { ...u, password: 'petugas123', nip: u.nip || 'NIP-PTG-001', status: u.status || 'Aktif' };
             if (u.role === 'passenger') return { ...u, password: 'penumpang123', status: u.status || 'Aktif' };
           }
