@@ -398,17 +398,262 @@ Petugas tidak dapat membuat akun sendiri. Gunakan Email/NIP dan Kata Sandi di at
         </div>
       </div>
 
-      {/* Information Banner based on subtab */}
+      {/* Information & Dedicated Form based on subtab */}
       {activeSubTab === 'officers' ? (
-        <div className="p-4 bg-cyan-50/80 border border-cyan-200 rounded-2xl flex items-start space-x-3 text-xs text-cyan-950 shadow-2xs">
-          <ShieldCheck className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-extrabold text-cyan-950 text-xs sm:text-sm">
-              Kebijakan Petugas Gate: Akun Wajib Dibuatkan oleh Administrator
-            </span>
-            <p className="text-[11px] text-cyan-900 leading-relaxed">
-              Petugas di lapangan <strong>tidak bisa membuat akun sendiri</strong> dari portal login. Anda dapat menambahkan akun petugas baru melalui tombol <strong>"+ Tambah Akun Petugas Baru"</strong>, kemudian menyalin kredensial login (Email/NIP & Kata Sandi) untuk diberikan kepada petugas yang bertugas di dermaga gate.
-            </p>
+        <div className="space-y-4">
+          {/* Success Banner if credentials newly created */}
+          {createdOfficerCreds && (
+            <div className="p-5 bg-emerald-500/10 border-2 border-emerald-500 rounded-3xl text-emerald-950 shadow-md animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-200">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm sm:text-base text-emerald-950">
+                      Akun Petugas Berhasil Diterbitkan & Aktif!
+                    </h4>
+                    <p className="text-xs text-emerald-800">
+                      Akun telah terdaftar di database sistem. Berikan kredensial di bawah kepada petugas untuk login di portal Scanner Gate.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => copyOfficerCredentials(createdOfficerCreds.officer, createdOfficerCreds.rawPassword)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    {copiedId === createdOfficerCreds.officer.id ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Tersalin ke Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Salin Format WhatsApp Petugas</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreatedOfficerCreds(null)}
+                    className="p-2 text-emerald-700 hover:bg-emerald-100 rounded-xl cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs bg-white/80 p-3.5 rounded-2xl border border-emerald-200 font-mono">
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-sans font-bold">Nama Petugas</span>
+                  <strong className="text-slate-900 font-sans">{createdOfficerCreds.officer.name}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-sans font-bold">NIP / ID</span>
+                  <strong className="text-cyan-800">{createdOfficerCreds.officer.nip || '-'}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-sans font-bold">Email Login</span>
+                  <strong className="text-slate-900">{createdOfficerCreds.officer.email}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-sans font-bold">Kata Sandi</span>
+                  <strong className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-xs">{createdOfficerCreds.rawPassword}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DEDICATED INLINE FORM: Admin Menambahkan Akun Petugas Secara Mandiri */}
+          <div className="bg-gradient-to-br from-slate-900 via-[#0F2C59] to-[#0A2647] rounded-3xl p-5 sm:p-7 text-white shadow-xl border border-cyan-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+              <div className="space-y-1">
+                <div className="inline-flex items-center space-x-2 px-2.5 py-0.5 bg-cyan-500/20 border border-cyan-400/40 rounded-full text-cyan-200 text-[11px] font-bold">
+                  <UserCheck className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>PENERBITAN AKUN RESMI PETUGAS OLEH ADMIN</span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-white">
+                  Formulir Tambah Akun Petugas (Diisi Mandiri oleh Admin)
+                </h3>
+                <p className="text-xs text-cyan-100/90 max-w-2xl leading-relaxed">
+                  Petugas gate di dermaga <strong>tidak dapat membuat akun sendiri</strong>. Administrator pelabuhan wajib mengisi identitas petugas di bawah ini untuk menerbitkan username & kata sandi resmi petugas.
+                </p>
+              </div>
+
+              <div className="shrink-0 flex items-center space-x-2">
+                <span className="px-3 py-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 rounded-xl text-xs font-bold">
+                  🛡️ Akses Mandiri Admin
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateOfficerSubmit} className="mt-5 space-y-4">
+              {formError && (
+                <div className="p-3 bg-red-500/20 border border-red-400 text-red-200 rounded-xl text-xs flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-300 shrink-0 mt-0.5" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* 1. Nama Lengkap */}
+                <div>
+                  <label className="block text-xs font-bold text-cyan-200 mb-1">
+                    Nama Lengkap Petugas <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={officerName}
+                    onChange={(e) => setOfficerName(e.target.value)}
+                    placeholder="Contoh: Budi Santoso, S.Sos"
+                    className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-xs font-medium text-white placeholder-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-cyan-400 outline-none"
+                    required
+                  />
+                </div>
+
+                {/* 2. NIP / ID Petugas */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-cyan-200">
+                      NIP / ID Petugas Resmi
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoNip}
+                      className="text-[10px] text-cyan-300 hover:text-white font-bold underline cursor-pointer"
+                    >
+                      ⚡ Buat NIP Otomatis
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={officerNip}
+                    onChange={(e) => setOfficerNip(e.target.value)}
+                    placeholder="Contoh: NIP-PTG-2026-002"
+                    className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-xs font-mono font-bold text-cyan-100 placeholder-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-cyan-400 outline-none"
+                  />
+                </div>
+
+                {/* 3. Pos Dermaga Penugasan */}
+                <div>
+                  <label className="block text-xs font-bold text-cyan-200 mb-1">
+                    Pos Dermaga Penugasan <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={officerDockId}
+                    onChange={(e) => setOfficerDockId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-white/20 rounded-xl text-xs font-medium text-white focus:ring-2 focus:ring-cyan-400 outline-none"
+                  >
+                    {docks.map((dock) => (
+                      <option key={dock.id} value={dock.id} className="bg-slate-900 text-white">
+                        {dock.name} ({dock.province || 'Sultra'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Email Resmi Petugas */}
+                <div>
+                  <label className="block text-xs font-bold text-cyan-200 mb-1">
+                    Email Resmi Petugas (Login) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={officerEmail}
+                    onChange={(e) => setOfficerEmail(e.target.value)}
+                    placeholder="budi.petugas@kapalku.id"
+                    className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-xs font-medium text-white placeholder-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-cyan-400 outline-none"
+                    required
+                  />
+                </div>
+
+                {/* 5. Nomor WhatsApp Petugas */}
+                <div>
+                  <label className="block text-xs font-bold text-cyan-200 mb-1">
+                    Nomor WhatsApp / HP Petugas
+                  </label>
+                  <input
+                    type="tel"
+                    value={officerPhone}
+                    onChange={(e) => setOfficerPhone(e.target.value)}
+                    placeholder="0812-4211-3344"
+                    className="w-full px-3.5 py-2.5 bg-white/10 border border-white/20 rounded-xl text-xs font-mono text-white placeholder-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-cyan-400 outline-none"
+                  />
+                  <span className="text-[10px] text-cyan-200/70 mt-0.5 block">Untuk pengiriman kredensial login via WA</span>
+                </div>
+
+                {/* 6. Kata Sandi Petugas */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-cyan-200">
+                      Kata Sandi Login Petugas <span className="text-rose-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePassword}
+                      className="text-[10px] text-cyan-300 hover:text-white font-bold underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      <span>🎲 Sandi Acak</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={officerPassword}
+                      onChange={(e) => setOfficerPassword(e.target.value)}
+                      placeholder="Minimal 6 karakter"
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-white/10 border border-white/20 rounded-xl text-xs font-mono font-bold text-cyan-100 placeholder-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-cyan-400 outline-none"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-cyan-300 hover:text-white cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-cyan-200/80 flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span>Akun petugas langsung terbit, aktif, dan dapat langsung login di Portal Petugas.</span>
+                </div>
+
+                <div className="flex items-center space-x-3 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOfficerName('');
+                      setOfficerNip('');
+                      setOfficerEmail('');
+                      setOfficerPhone('');
+                      setOfficerPassword('Petugas123#');
+                      setFormError('');
+                    }}
+                    className="px-4 py-2.5 rounded-xl border border-white/20 text-slate-300 hover:text-white hover:bg-white/10 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Kosongkan Form
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-cyan-500/30 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserCheck className="w-4 h-4 text-white" />
+                    <span>{isSubmitting ? 'Menerbitkan Akun...' : '💾 Simpan & Terbitkan Akun Petugas'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       ) : (

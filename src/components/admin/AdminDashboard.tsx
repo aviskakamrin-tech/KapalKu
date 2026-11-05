@@ -25,6 +25,9 @@ import {
   Database,
   RefreshCw,
   RotateCcw,
+  UserCheck,
+  ScanLine,
+  Plus,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -123,6 +126,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               </button>
             )}
+
+            {/* Quick Action: Tambah Akun Petugas Mandiri */}
+            <button
+              type="button"
+              onClick={() => setAdminTab('users')}
+              className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white rounded-2xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer shadow-md shadow-cyan-500/20 active:scale-95"
+              title="Buka Formulir Penerbitan Akun Petugas Mandiri"
+            >
+              <UserCheck className="w-4 h-4 text-white" />
+              <span>+ Tambah Akun Petugas</span>
+            </button>
 
             {onOpenRoleLinks && (
               <button
@@ -370,6 +384,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </span>
         </button>
 
+        {/* Tab 2: Tambah & Kelola Akun Petugas Gate (Prioritas Admin) */}
+        <button
+          onClick={() => setAdminTab('users')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            adminTab === 'users'
+              ? 'bg-[#0F2C59] text-white shadow-md ring-2 ring-cyan-400'
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 bg-cyan-50/60 border border-cyan-200/80'
+          }`}
+          title="Kelola & Terbitkan Akun Petugas Gate Mandiri oleh Admin"
+        >
+          <UserCheck className="w-4 h-4 text-cyan-600" />
+          <span>Akun Petugas Gate & Pengguna</span>
+          <span className="ml-1 px-1.5 py-0.2 bg-cyan-500/20 text-cyan-800 text-[10px] rounded-full font-bold">
+            + Tambah Petugas
+          </span>
+        </button>
+
         <button
           onClick={() => setAdminTab('routes_pricing')}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
@@ -438,25 +469,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           <FileSpreadsheet className="w-4 h-4 text-amber-400" />
           <span>Laporan Manifes & Keuangan</span>
-        </button>
-
-        <button
-          onClick={() => setAdminTab('users')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-            adminTab === 'users'
-              ? 'bg-[#0F2C59] text-white shadow-md'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-          title="Kelola Akun Petugas Gate & Direktori Pengguna"
-        >
-          <Users className="w-4 h-4 text-cyan-400" />
-          <span>Kelola Akun Petugas & Pengguna</span>
-          <span className="ml-1 px-1.5 py-0.2 bg-cyan-500/30 text-cyan-200 text-[10px] rounded-full font-mono">
-            {users.length}
-          </span>
-          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 px-1.5 py-0.2 rounded font-bold">
-            + Tambah Petugas
-          </span>
         </button>
       </div>
 

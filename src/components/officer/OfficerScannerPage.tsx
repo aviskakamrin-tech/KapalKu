@@ -169,18 +169,48 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
 
   // Parse raw text from QR/Barcode to extract clean booking code
   const extractBookingCode = (rawText: string): string => {
+    if (!rawText) return '';
     const text = rawText.trim();
-    // Check if matches standard KPK-XXXXXX
-    const match = text.match(/KPK-[A-Z0-9_-]+/i);
-    if (match) {
-      return match[0].toUpperCase();
-    }
-    // Try JSON parsing
+
+    // 1. Check if URL contains query parameter
     try {
-      const parsed = JSON.parse(text);
-      if (parsed.bookingCode) return parsed.bookingCode.toUpperCase();
-      if (parsed.code) return parsed.code.toUpperCase();
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        const url = new URL(text);
+        const codeParam = url.searchParams.get('code') || url.searchParams.get('bookingCode') || url.searchParams.get('data');
+        if (codeParam) return extractBookingCode(codeParam);
+      }
     } catch (e) {}
+
+    // 2. Try JSON parsing
+    try {
+      if (text.startsWith('{') && text.endsWith('}')) {
+        const parsed = JSON.parse(text);
+        if (parsed.bookingCode) return extractBookingCode(parsed.bookingCode);
+        if (parsed.code) return extractBookingCode(parsed.code);
+        if (parsed.id) return extractBookingCode(parsed.id);
+      }
+    } catch (e) {}
+
+    // 3. Match standard prefix: KPK-XXXXX or KK-YYYYMMDD-XXXX or KK-XXXXX
+    const standardMatch = text.match(/(KPK|KK)-[A-Z0-9_-]+/i);
+    if (standardMatch) {
+      return standardMatch[0].toUpperCase();
+    }
+
+    // 4. Match without hyphen: KPK12345 or KK12345
+    const noHyphenMatch = text.match(/(KPK|KK)[0-9]{4,}/i);
+    if (noHyphenMatch) {
+      const p = noHyphenMatch[0].toUpperCase();
+      return p.startsWith('KPK') ? p.replace('KPK', 'KPK-') : p.replace('KK', 'KK-');
+    }
+
+    // 5. Match reservation ID: res_123456
+    const resIdMatch = text.match(/res_[A-Z0-9_-]+/i);
+    if (resIdMatch) {
+      return resIdMatch[0];
+    }
+
+    // 6. Direct cleaned alphanumeric string
     return text.toUpperCase();
   };
 

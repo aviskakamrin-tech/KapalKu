@@ -1246,17 +1246,80 @@ async function startServer() {
   });
 
   // Ticket Validation & Check-in for Admin / Gate Officers
-  app.post('/api/reservations/validate', (req, res) => {
+  app.post('/api/reservations/validate', async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'Kode booking wajib diisi' });
 
-    const cleanCode = code.trim().toUpperCase();
-    const reservation = reservations.find((r) => r.bookingCode.toUpperCase() === cleanCode || r.id === cleanCode);
+    const raw = String(code).trim().toUpperCase();
+    const match = raw.match(/(KPK|KK)-[A-Z0-9_-]+/i) || raw.match(/(KPK|KK)[0-9]{4,}/i) || raw.match(/RES_[A-Z0-9_-]+/i);
+    const cleanCode = match ? match[0].toUpperCase() : raw;
+
+    let reservation = reservations.find(
+      (r) =>
+        r.bookingCode.toUpperCase() === cleanCode ||
+        r.bookingCode.toUpperCase() === raw ||
+        r.id.toUpperCase() === cleanCode ||
+        r.id.toUpperCase() === raw ||
+        raw.includes(r.bookingCode.toUpperCase())
+    );
+
+    // If not found in memory, query Supabase database
+    if (!reservation) {
+      try {
+        const { data: supaRows } = await supabase.from('reservations').select('*');
+        if (supaRows && supaRows.length > 0) {
+          const matchedDb = supaRows.find(
+            (r: any) =>
+              (r.booking_code && (r.booking_code.toUpperCase() === cleanCode || r.booking_code.toUpperCase() === raw || raw.includes(r.booking_code.toUpperCase()))) ||
+              (r.id && (r.id.toUpperCase() === cleanCode || r.id.toUpperCase() === raw))
+          );
+          if (matchedDb) {
+            reservation = {
+              id: matchedDb.id,
+              bookingCode: matchedDb.booking_code,
+              userId: matchedDb.user_id,
+              userName: matchedDb.user_name,
+              userPhone: matchedDb.user_phone,
+              userEmail: matchedDb.user_email,
+              scheduleId: matchedDb.schedule_id,
+              vesselName: matchedDb.vessel_name,
+              vesselType: matchedDb.vessel_type,
+              originDockName: matchedDb.origin_dock_name,
+              destinationDockName: matchedDb.destination_dock_name,
+              travelDate: matchedDb.travel_date,
+              departureTime: matchedDb.departure_time,
+              estimatedArrivalTime: matchedDb.estimated_arrival_time,
+              passengersCount: Number(matchedDb.passengers_count || 1),
+              motorbikesCount: Number(matchedDb.motorbikes_count || 0),
+              carsCount: Number(matchedDb.cars_count || 0),
+              passengersList: matchedDb.passengers_list || [],
+              vehiclePlate: matchedDb.vehicle_plate,
+              vehicleType: matchedDb.vehicle_type,
+              basePrice: Number(matchedDb.base_price || 0),
+              insuranceFee: Number(matchedDb.insurance_fee || 0),
+              portServiceFee: Number(matchedDb.port_service_fee || 0),
+              totalPrice: Number(matchedDb.total_price),
+              paymentMethod: matchedDb.payment_method,
+              paymentStatus: matchedDb.payment_status,
+              reservationStatus: matchedDb.reservation_status,
+              checkInStatus: matchedDb.check_in_status || 'Belum Check-In',
+              checkInTime: matchedDb.check_in_time,
+              scannedBy: matchedDb.scanned_by,
+              scannedAt: matchedDb.scanned_at,
+              gateNumber: matchedDb.gate_number,
+              createdAt: matchedDb.created_at,
+              qrCodeUrl: matchedDb.qr_code_url,
+            };
+            reservations.unshift(reservation);
+          }
+        }
+      } catch (e) {}
+    }
 
     if (!reservation) {
       return res.status(404).json({
         valid: false,
-        message: 'Tiket TIDAK DITEMUKAN. Periksa kembali kode booking atau QR Code.',
+        message: `Tiket dengan kode "${cleanCode}" TIDAK DITEMUKAN dalam sistem manifes pelayaran. Periksa kembali kode booking atau barcode.`,
       });
     }
 
@@ -1289,8 +1352,18 @@ async function startServer() {
     const { code, officerName } = req.body;
     if (!code) return res.status(400).json({ error: 'Kode booking wajib diisi' });
 
-    const cleanCode = code.trim().toUpperCase();
-    const index = reservations.findIndex((r) => r.bookingCode.toUpperCase() === cleanCode || r.id === cleanCode);
+    const raw = String(code).trim().toUpperCase();
+    const match = raw.match(/(KPK|KK)-[A-Z0-9_-]+/i) || raw.match(/(KPK|KK)[0-9]{4,}/i) || raw.match(/RES_[A-Z0-9_-]+/i);
+    const cleanCode = match ? match[0].toUpperCase() : raw;
+
+    let index = reservations.findIndex(
+      (r) =>
+        r.bookingCode.toUpperCase() === cleanCode ||
+        r.bookingCode.toUpperCase() === raw ||
+        r.id.toUpperCase() === cleanCode ||
+        r.id.toUpperCase() === raw ||
+        raw.includes(r.bookingCode.toUpperCase())
+    );
 
     if (index === -1) {
       return res.status(404).json({ success: false, error: 'Tiket tidak ditemukan.' });

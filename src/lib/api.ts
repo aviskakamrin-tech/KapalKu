@@ -1019,7 +1019,61 @@ export const api = {
 
   // ================= RESERVATIONS / TICKETS =================
   getReservations: async (): Promise<Reservation[]> => {
-    return safeFetch('/api/reservations', undefined, () => {
+    return safeFetch('/api/reservations', undefined, async () => {
+      try {
+        const { data: dbRes, error } = await supabase.from('reservations').select('*');
+        if (!error && Array.isArray(dbRes) && dbRes.length > 0) {
+          const mapped: Reservation[] = dbRes.map((r: any) => ({
+            id: r.id,
+            bookingCode: r.booking_code,
+            userId: r.user_id,
+            userName: r.user_name,
+            userPhone: r.user_phone,
+            userEmail: r.user_email,
+            scheduleId: r.schedule_id,
+            vesselName: r.vessel_name,
+            vesselType: r.vessel_type,
+            originDockName: r.origin_dock_name,
+            destinationDockName: r.destination_dock_name,
+            travelDate: r.travel_date,
+            departureTime: r.departure_time,
+            estimatedArrivalTime: r.estimated_arrival_time,
+            passengersCount: Number(r.passengers_count || 1),
+            motorbikesCount: Number(r.motorbikes_count || 0),
+            carsCount: Number(r.cars_count || 0),
+            passengersList: r.passengers_list || [],
+            vehiclePlate: r.vehicle_plate,
+            vehicleType: r.vehicle_type,
+            basePrice: Number(r.base_price || 0),
+            insuranceFee: Number(r.insurance_fee || 0),
+            portServiceFee: Number(r.port_service_fee || 0),
+            totalPrice: Number(r.total_price),
+            paymentMethod: r.payment_method,
+            paymentStatus: r.payment_status,
+            reservationStatus: r.reservation_status,
+            checkInStatus: r.check_in_status || 'Belum Check-In',
+            checkInTime: r.check_in_time,
+            scannedBy: r.scanned_by,
+            scannedAt: r.scanned_at,
+            gateNumber: r.gate_number,
+            createdAt: r.created_at,
+            qrCodeUrl: r.qr_code_url,
+            refundStatus: r.refund_status,
+            refundDetails: r.refund_details,
+            cancellationReason: r.cancellation_reason,
+          }));
+
+          const existingIds = new Set(mapped.map((m) => m.id));
+          const existingCodes = new Set(mapped.map((m) => m.bookingCode));
+          const local = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
+          const extras = local.filter((l) => !existingIds.has(l.id) && !existingCodes.has(l.bookingCode));
+
+          localReservations = [...mapped, ...extras];
+          setLocal(STORAGE_KEYS.RESERVATIONS, localReservations);
+          return localReservations;
+        }
+      } catch (e) {}
+
       localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
       return localReservations;
     });
@@ -1046,7 +1100,7 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       },
-      () => {
+      async () => {
         localSchedules = getLocal(STORAGE_KEYS.SCHEDULES, INITIAL_SCHEDULES);
         localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
 
@@ -1070,10 +1124,10 @@ export const api = {
           userName: data.userName,
           userPhone: data.userPhone,
           userEmail: data.userEmail || 'penumpang@kapalku.id',
-          vesselName: schedule?.vesselName || 'KMP Jawatutu',
+          vesselName: schedule?.vesselName || 'KMP Oputa Yi Ko',
           vesselType: schedule?.vesselType || 'Feri',
-          originDockName: schedule?.originDockName || 'Dermaga Semayang',
-          destinationDockName: schedule?.destinationDockName || 'Dermaga Penajam',
+          originDockName: schedule?.originDockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+          destinationDockName: schedule?.destinationDockName || 'Pelabuhan Pising (Kabaena Utara, Bombana)',
           travelDate: schedule?.date || new Date().toISOString().split('T')[0],
           departureTime: schedule?.departureTime || '08:00',
           passengersCount: pCount,
@@ -1083,13 +1137,50 @@ export const api = {
           reservationStatus: 'Terkonfirmasi',
           paymentStatus: 'Lunas',
           checkInStatus: 'Belum Check-In',
-          paymentMethod: data.paymentMethod || 'QRIS Nasional (NMID 9360012)',
+          gateNumber: `GATE 1${String.fromCharCode(65 + Math.floor(Math.random() * 3))}`,
+          paymentMethod: data.paymentMethod || 'QRIS Terpadu (NMID 9360012)',
           createdAt: new Date().toLocaleDateString('id-ID') + ' ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-          qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=KAPALKU-${bookingCode}-${encodeURIComponent(data.userName)}`,
-          passengersList: data.passengersList || [{ name: data.userName, idNumber: '6471020000000001', type: 'Dewasa', seatNumber: 'A-12' }],
+          qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${bookingCode}`,
+          passengersList: data.passengersList || [{ name: data.userName, idNumber: '7406020000000001', type: 'Dewasa', seatNumber: 'A-12' }],
           vehiclePlate: data.vehiclePlate,
           vehicleType: data.vehicleType,
         };
+
+        // Sync to Supabase directly
+        try {
+          await supabase.from('reservations').upsert({
+            id: newReservation.id,
+            booking_code: newReservation.bookingCode,
+            user_id: newReservation.userId,
+            user_name: newReservation.userName,
+            user_phone: newReservation.userPhone,
+            user_email: newReservation.userEmail,
+            schedule_id: newReservation.scheduleId,
+            vessel_name: newReservation.vesselName,
+            vessel_type: newReservation.vesselType,
+            origin_dock_name: newReservation.originDockName,
+            destination_dock_name: newReservation.destinationDockName,
+            travel_date: newReservation.travelDate,
+            departure_time: newReservation.departureTime,
+            estimated_arrival_time: newReservation.estimatedArrivalTime || '',
+            passengers_count: newReservation.passengersCount,
+            motorbikes_count: newReservation.motorbikesCount,
+            cars_count: newReservation.carsCount,
+            passengers_list: newReservation.passengersList,
+            vehicle_plate: newReservation.vehiclePlate,
+            vehicle_type: newReservation.vehicleType,
+            base_price: newReservation.basePrice || newReservation.totalPrice,
+            insurance_fee: newReservation.insuranceFee || 0,
+            port_service_fee: newReservation.portServiceFee || 0,
+            total_price: newReservation.totalPrice,
+            payment_method: newReservation.paymentMethod,
+            payment_status: newReservation.paymentStatus,
+            reservation_status: newReservation.reservationStatus,
+            check_in_status: newReservation.checkInStatus,
+            gate_number: newReservation.gateNumber,
+            qr_code_url: newReservation.qrCodeUrl,
+          });
+        } catch (e) {}
 
         // Update schedule counts
         if (schedule) {
@@ -1138,27 +1229,90 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       },
-      () => {
+      async () => {
         localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
         const raw = String(code || '').trim().toUpperCase();
         
-        // Extract KPK-XXXXXX or find by ID / raw string
-        const kpkMatch = raw.match(/KPK-\d+/i) || raw.match(/KPK\d+/i);
-        const searchCode = kpkMatch ? kpkMatch[0].replace('KPK', 'KPK-').replace('--', '-') : raw;
+        // Match KPK-XXXXXX or KK-YYYYMMDD-XXXX or KK-XXXXXX or res_XXXX
+        const match = raw.match(/(KPK|KK)-[A-Z0-9_-]+/i) || raw.match(/(KPK|KK)[0-9]{4,}/i) || raw.match(/RES_[A-Z0-9_-]+/i);
+        const searchCode = match ? match[0].toUpperCase() : raw;
 
-        const found = localReservations.find(
+        let found = localReservations.find(
           (r) =>
             r.bookingCode.toUpperCase() === searchCode.toUpperCase() ||
             r.bookingCode.toUpperCase() === raw ||
+            r.id.toUpperCase() === searchCode ||
             r.id.toUpperCase() === raw ||
-            (r.qrCodeUrl && r.qrCodeUrl.toUpperCase().includes(raw))
+            raw.includes(r.bookingCode.toUpperCase()) ||
+            (r.qrCodeUrl && r.qrCodeUrl.toUpperCase().includes(searchCode))
         );
+
+        // If not found in local cache, query Supabase database
+        if (!found) {
+          try {
+            const { data: dbRows } = await supabase.from('reservations').select('*');
+            if (dbRows && dbRows.length > 0) {
+              const matchedDb = dbRows.find((r: any) =>
+                (r.booking_code && (
+                  r.booking_code.toUpperCase() === searchCode ||
+                  r.booking_code.toUpperCase() === raw ||
+                  raw.includes(r.booking_code.toUpperCase())
+                )) ||
+                (r.id && (r.id.toUpperCase() === searchCode || r.id.toUpperCase() === raw))
+              );
+
+              if (matchedDb) {
+                found = {
+                  id: matchedDb.id,
+                  bookingCode: matchedDb.booking_code,
+                  userId: matchedDb.user_id,
+                  userName: matchedDb.user_name,
+                  userPhone: matchedDb.user_phone,
+                  userEmail: matchedDb.user_email,
+                  scheduleId: matchedDb.schedule_id,
+                  vesselName: matchedDb.vessel_name,
+                  vesselType: matchedDb.vessel_type,
+                  originDockName: matchedDb.origin_dock_name,
+                  destinationDockName: matchedDb.destination_dock_name,
+                  travelDate: matchedDb.travel_date,
+                  departureTime: matchedDb.departure_time,
+                  estimatedArrivalTime: matchedDb.estimated_arrival_time,
+                  passengersCount: Number(matchedDb.passengers_count || 1),
+                  motorbikesCount: Number(matchedDb.motorbikes_count || 0),
+                  carsCount: Number(matchedDb.cars_count || 0),
+                  passengersList: matchedDb.passengers_list || [],
+                  vehiclePlate: matchedDb.vehicle_plate,
+                  vehicleType: matchedDb.vehicle_type,
+                  basePrice: Number(matchedDb.base_price || 0),
+                  insuranceFee: Number(matchedDb.insurance_fee || 0),
+                  portServiceFee: Number(matchedDb.port_service_fee || 0),
+                  totalPrice: Number(matchedDb.total_price),
+                  paymentMethod: matchedDb.payment_method,
+                  paymentStatus: matchedDb.payment_status,
+                  reservationStatus: matchedDb.reservation_status,
+                  checkInStatus: matchedDb.check_in_status || 'Belum Check-In',
+                  checkInTime: matchedDb.check_in_time,
+                  scannedBy: matchedDb.scanned_by,
+                  scannedAt: matchedDb.scanned_at,
+                  gateNumber: matchedDb.gate_number,
+                  createdAt: matchedDb.created_at,
+                  qrCodeUrl: matchedDb.qr_code_url,
+                  refundStatus: matchedDb.refund_status,
+                  refundDetails: matchedDb.refund_details,
+                  cancellationReason: matchedDb.cancellation_reason,
+                };
+                localReservations = [found, ...localReservations.filter((x) => x.id !== found!.id)];
+                setLocal(STORAGE_KEYS.RESERVATIONS, localReservations);
+              }
+            }
+          } catch (e) {}
+        }
 
         if (!found) {
           return {
             valid: false,
             status: 'NOT_FOUND',
-            message: `Tiket dengan kode "${raw}" tidak ditemukan dalam sistem manifes pelayaran.`,
+            message: `Tiket dengan kode "${searchCode}" tidak ditemukan dalam sistem manifes pelayaran.`,
           };
         }
 
@@ -1207,24 +1361,86 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, officerName }),
       },
-      () => {
+      async () => {
         localReservations = getLocal(STORAGE_KEYS.RESERVATIONS, INITIAL_RESERVATIONS);
         const raw = String(code || '').trim().toUpperCase();
-        const kpkMatch = raw.match(/KPK-\d+/i) || raw.match(/KPK\d+/i);
-        const searchCode = kpkMatch ? kpkMatch[0].replace('KPK', 'KPK-').replace('--', '-') : raw;
+        const match = raw.match(/(KPK|KK)-[A-Z0-9_-]+/i) || raw.match(/(KPK|KK)[0-9]{4,}/i) || raw.match(/RES_[A-Z0-9_-]+/i);
+        const searchCode = match ? match[0].toUpperCase() : raw;
 
-        const idx = localReservations.findIndex(
+        let idx = localReservations.findIndex(
           (r) =>
             r.bookingCode.toUpperCase() === searchCode.toUpperCase() ||
             r.bookingCode.toUpperCase() === raw ||
-            r.id.toUpperCase() === raw
+            r.id.toUpperCase() === searchCode ||
+            r.id.toUpperCase() === raw ||
+            raw.includes(r.bookingCode.toUpperCase())
         );
 
+        // If not found in memory, check Supabase
         if (idx === -1) {
-          throw new Error('Tiket tidak ditemukan dalam manifes');
+          try {
+            const { data: dbRows } = await supabase.from('reservations').select('*');
+            if (dbRows && dbRows.length > 0) {
+              const matchedDb = dbRows.find((r: any) =>
+                (r.booking_code && (
+                  r.booking_code.toUpperCase() === searchCode ||
+                  r.booking_code.toUpperCase() === raw ||
+                  raw.includes(r.booking_code.toUpperCase())
+                )) ||
+                (r.id && (r.id.toUpperCase() === searchCode || r.id.toUpperCase() === raw))
+              );
+              if (matchedDb) {
+                const item: Reservation = {
+                  id: matchedDb.id,
+                  bookingCode: matchedDb.booking_code,
+                  userId: matchedDb.user_id,
+                  userName: matchedDb.user_name,
+                  userPhone: matchedDb.user_phone,
+                  userEmail: matchedDb.user_email,
+                  scheduleId: matchedDb.schedule_id,
+                  vesselName: matchedDb.vessel_name,
+                  vesselType: matchedDb.vessel_type,
+                  originDockName: matchedDb.origin_dock_name,
+                  destinationDockName: matchedDb.destination_dock_name,
+                  travelDate: matchedDb.travel_date,
+                  departureTime: matchedDb.departure_time,
+                  estimatedArrivalTime: matchedDb.estimated_arrival_time,
+                  passengersCount: Number(matchedDb.passengers_count || 1),
+                  motorbikesCount: Number(matchedDb.motorbikes_count || 0),
+                  carsCount: Number(matchedDb.cars_count || 0),
+                  passengersList: matchedDb.passengers_list || [],
+                  vehiclePlate: matchedDb.vehicle_plate,
+                  vehicleType: matchedDb.vehicle_type,
+                  basePrice: Number(matchedDb.base_price || 0),
+                  insuranceFee: Number(matchedDb.insurance_fee || 0),
+                  portServiceFee: Number(matchedDb.port_service_fee || 0),
+                  totalPrice: Number(matchedDb.total_price),
+                  paymentMethod: matchedDb.payment_method,
+                  paymentStatus: matchedDb.payment_status,
+                  reservationStatus: matchedDb.reservation_status,
+                  checkInStatus: matchedDb.check_in_status || 'Belum Check-In',
+                  checkInTime: matchedDb.check_in_time,
+                  scannedBy: matchedDb.scanned_by,
+                  scannedAt: matchedDb.scanned_at,
+                  gateNumber: matchedDb.gate_number,
+                  createdAt: matchedDb.created_at,
+                  qrCodeUrl: matchedDb.qr_code_url,
+                  refundStatus: matchedDb.refund_status,
+                  refundDetails: matchedDb.refund_details,
+                  cancellationReason: matchedDb.cancellation_reason,
+                };
+                localReservations.unshift(item);
+                idx = 0;
+              }
+            }
+          } catch (e) {}
         }
 
-        const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (idx === -1) {
+          throw new Error(`Tiket dengan kode "${searchCode}" tidak ditemukan dalam manifes`);
+        }
+
+        const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WITA';
         const nowFull = new Date().toLocaleDateString('id-ID') + ' ' + nowTime;
 
         localReservations[idx].checkInStatus = 'Sudah Check-In (Boarded)';
@@ -1232,6 +1448,16 @@ export const api = {
         localReservations[idx].scannedAt = nowFull;
         localReservations[idx].scannedBy = officerName || 'Petugas Gate Dermaga';
         setLocal(STORAGE_KEYS.RESERVATIONS, localReservations);
+
+        // Update Supabase
+        try {
+          await supabase.from('reservations').update({
+            check_in_status: 'Sudah Check-In (Boarded)',
+            check_in_time: nowTime,
+            scanned_by: officerName || 'Petugas Gate Dermaga',
+            scanned_at: nowFull,
+          }).eq('id', localReservations[idx].id);
+        } catch (e) {}
 
         addAuditLog(
           officerName || 'Petugas Gate',
