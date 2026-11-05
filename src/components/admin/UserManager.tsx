@@ -225,7 +225,27 @@ export const UserManager: React.FC<UserManagerProps> = ({
   const copyOfficerCredentials = (officer: User, pass?: string) => {
     const passwordToCopy = pass || officer.password || 'petugas123';
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://kapalku.vercel.app';
-    const loginLink = `${origin}/?role=officer&login=true#/petugas`;
+
+    // Create base64 sync token for instant cross-domain sync
+    let syncToken = '';
+    try {
+      const syncData = {
+        id: officer.id,
+        name: officer.name,
+        nip: officer.nip,
+        email: officer.email,
+        phone: officer.phone,
+        password: passwordToCopy,
+        dockId: officer.dockId,
+        dockName: officer.dockName,
+        status: officer.status || 'Aktif',
+      };
+      syncToken = btoa(unescape(encodeURIComponent(JSON.stringify(syncData))));
+    } catch (e) {}
+
+    const loginLink = syncToken
+      ? `${origin}/?role=officer&login=true&sync_officer=${encodeURIComponent(syncToken)}#/petugas`
+      : `${origin}/?role=officer&login=true#/petugas`;
 
     const text = `⚓ KREDENSIAL RESMI AKUN PETUGAS GATE KAPALKU ⚓
 --------------------------------------------------
@@ -236,11 +256,11 @@ Email / Login: ${officer.email}
 Kata Sandi   : ${passwordToCopy}
 Status Akun  : ${officer.status || 'Aktif'}
 --------------------------------------------------
-🔗 Link Login Petugas:
+🔗 Link Login Petugas (Auto-Sync Akun):
 ${loginLink}
 
 *PENTING*:
-Petugas tidak dapat membuat akun sendiri. Gunakan Email/NIP dan Kata Sandi di atas untuk masuk ke Scanner Boarding Gate.`;
+Petugas tidak dapat membuat akun sendiri. Klik link di atas untuk langsung tersinkron dan masuk ke Scanner Boarding Gate.`;
 
     navigator.clipboard.writeText(text);
     setCopiedId(officer.id);

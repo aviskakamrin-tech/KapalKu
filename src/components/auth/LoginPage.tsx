@@ -60,6 +60,93 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [forgotInput, setForgotInput] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
 
+  // Officer Sync State & Handler
+  const [showSyncOfficerModal, setShowSyncOfficerModal] = useState(false);
+  const [syncOfficerInput, setSyncOfficerInput] = useState('');
+  const [syncError, setSyncError] = useState('');
+
+  // Auto-detect sync_officer from URL query parameters (e.g. from WhatsApp link)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const syncToken = params.get('sync_officer');
+      if (syncToken) {
+        let decoded: any = null;
+        try {
+          decoded = JSON.parse(decodeURIComponent(escape(atob(syncToken))));
+        } catch (e) {
+          decoded = JSON.parse(atob(syncToken));
+        }
+        if (decoded && (decoded.email || decoded.nip)) {
+          api.syncOfficerFromToken(decoded);
+          setLoginIdentifier(decoded.nip || decoded.email);
+          if (decoded.password) {
+            setLoginPassword(decoded.password);
+          }
+          setSuccessMessage(
+            `✅ Akun Petugas "${decoded.name || 'Petugas Gate'}" (${decoded.nip || decoded.email}) berhasil disinkronkan dari Admin! Silakan klik tombol Masuk.`
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memproses sync_officer token:', e);
+    }
+  }, []);
+
+  const handleSyncOfficerFromText = (rawText: string) => {
+    try {
+      let officerData: any = null;
+      const trimmed = rawText.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        officerData = JSON.parse(trimmed);
+      } else {
+        // Try base64
+        try {
+          officerData = JSON.parse(decodeURIComponent(escape(atob(trimmed))));
+        } catch (e) {
+          // Parse WhatsApp text template:
+          // Nama Lengkap : ...
+          // NIP / ID     : ...
+          // Email / Login: ...
+          // Kata Sandi   : ...
+          const nameMatch = trimmed.match(/Nama\s*Lengkap\s*:\s*(.+)/i);
+          const nipMatch = trimmed.match(/NIP\s*(?:\/\s*ID)?\s*:\s*(.+)/i);
+          const emailMatch = trimmed.match(/Email\s*(?:\/\s*Login)?\s*:\s*(.+)/i);
+          const passMatch = trimmed.match(/Kata\s*Sandi\s*:\s*(.+)/i);
+          const dockMatch = trimmed.match(/Penugasan\s*:\s*(.+)/i);
+
+          if (emailMatch || nipMatch) {
+            officerData = {
+              name: nameMatch ? nameMatch[1].trim() : 'Petugas Lapangan',
+              nip: nipMatch ? nipMatch[1].trim() : '',
+              email: emailMatch ? emailMatch[1].trim() : '',
+              password: passMatch ? passMatch[1].trim() : '',
+              dockName: dockMatch ? dockMatch[1].trim() : '',
+            };
+          }
+        }
+      }
+
+      if (officerData && (officerData.email || officerData.nip)) {
+        api.syncOfficerFromToken(officerData);
+        setLoginIdentifier(officerData.nip || officerData.email);
+        if (officerData.password) {
+          setLoginPassword(officerData.password);
+        }
+        setSuccessMessage(
+          `✅ Akun Petugas "${officerData.name || 'Petugas'}" (${officerData.nip || officerData.email}) berhasil disinkronkan dari Admin! Silakan klik Masuk.`
+        );
+        setErrorMessage('');
+        setShowSyncOfficerModal(false);
+      } else {
+        setSyncError('Format teks tidak dikenali. Silakan salin pesan WhatsApp dari Admin secara utuh.');
+      }
+    } catch (err: any) {
+      setSyncError('Gagal memproses kredensial: ' + (err.message || 'Format tidak sesuai'));
+    }
+  };
+
   const roleMeta = {
     admin: {
       badge: 'LOGIN RESMI ADMINISTRATOR',
@@ -270,15 +357,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
             </div>
           ) : activeRole === 'officer' ? (
-            <div className="mb-5 p-4 bg-cyan-50/90 border border-cyan-200/90 rounded-2xl text-xs text-cyan-950 flex items-start space-x-3 shadow-2xs">
-              <ShieldCheck className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-extrabold text-cyan-950 block text-xs sm:text-sm">
-                  Otorisasi Petugas: Akun Dikelola Administrator
-                </span>
-                <p className="text-[11px] text-cyan-900 leading-relaxed">
-                  Petugas <strong>tidak dapat membuat akun sendiri</strong>. Seluruh akun dan kata sandi petugas gate diterbitkan langsung oleh <strong>Administrator Pelabuhan</strong>. Silakan masukkan NIP atau Email Resmi serta kata sandi yang telah diberikan oleh Admin.
-                </p>
+            <div className="mb-5 p-4 bg-cyan-50/90 border border-cyan-200/90 rounded-2xl text-xs text-cyan-950 flex flex-col space-y-3 shadow-2xs">
+              <div className="flex items-start space-x-3">
+                <ShieldCheck className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-extrabold text-cyan-950 block text-xs sm:text-sm">
+                    Otorisasi Petugas: Akun Dikelola Administrator
+                  </span>
+                  <p className="text-[11px] text-cyan-900 leading-relaxed">
+                    Petugas <strong>tidak dapat membuat akun sendiri</strong>. Seluruh akun dan kata sandi petugas gate diterbitkan langsung oleh <strong>Administrator Pelabuhan</strong>. Silakan masukkan NIP atau Email Resmi serta kata sandi yang telah diberikan oleh Admin.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-cyan-200/60 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-cyan-700 font-medium">Mendapat pesan kredensial dari Admin?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSyncError('');
+                    setSyncOfficerInput('');
+                    setShowSyncOfficerModal(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer active:scale-95"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-cyan-200" />
+                  <span>Sinkronkan Akun</span>
+                </button>
               </div>
             </div>
           ) : (
@@ -672,6 +776,80 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Sinkronisasi Akun Petugas dari Admin */}
+      {showSyncOfficerModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-cyan-600 flex items-center justify-center text-white shadow-md shadow-cyan-600/30">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Sinkronkan Akun Petugas</h3>
+                  <p className="text-xs text-slate-500">Impor akun resmi yang dibuatkan oleh Admin</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSyncOfficerModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-cyan-50 border border-cyan-200/80 rounded-2xl text-[11px] text-cyan-900 leading-relaxed space-y-1">
+              <p className="font-semibold text-cyan-950">Cara Penggunaan:</p>
+              <p>
+                Salin seluruh pesan WhatsApp kredensial yang dikirimkan oleh Administrator Pelabuhan, lalu tempelkan (paste) pada kotak di bawah ini.
+              </p>
+            </div>
+
+            {syncError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{syncError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                Tempel Pesan WhatsApp Kredensial / Token Sinkronisasi:
+              </label>
+              <textarea
+                value={syncOfficerInput}
+                onChange={(e) => {
+                  setSyncOfficerInput(e.target.value);
+                  setSyncError('');
+                }}
+                placeholder="Contoh:&#10;⚓ KREDENSIAL RESMI AKUN PETUGAS GATE KAPALKU ⚓&#10;Nama Lengkap : Budi Santoso&#10;NIP / ID     : NIP-PTG-001&#10;Email / Login: budi@petugas.kapalku.id&#10;Kata Sandi   : Petugas123#"
+                rows={5}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:bg-white focus:border-cyan-500 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowSyncOfficerModal(false)}
+                className="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSyncOfficerFromText(syncOfficerInput)}
+                disabled={!syncOfficerInput.trim()}
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded-xl shadow-md shadow-cyan-600/30 cursor-pointer"
+              >
+                Sinkronkan & Isi Form
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -22,8 +22,30 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
 const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdra2x6Z2R4cHFmeHNrdXZzZHB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMjE5MTgsImV4cCI6MjEwNTY5NzkxOH0.y06Q6MotYwl4PW8rh3BK5VnWf-YoL97kN8coGYTrq5g';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+import fs from 'fs';
+
 // In-Memory Fallback State for Serverless Function
 let users = [...INITIAL_USERS];
+
+const VERCEL_USERS_FILE = '/tmp/kapalku_users.json';
+function loadVercelUsers() {
+  try {
+    if (fs.existsSync(VERCEL_USERS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(VERCEL_USERS_FILE, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) {
+        const existingIds = new Set(data.map((u: any) => u.id));
+        users = [...data, ...INITIAL_USERS.filter((u) => !existingIds.has(u.id))];
+      }
+    }
+  } catch (e) {}
+}
+function saveVercelUsers() {
+  try {
+    fs.writeFileSync(VERCEL_USERS_FILE, JSON.stringify(users), 'utf-8');
+  } catch (e) {}
+}
+loadVercelUsers();
+
 let vessels: Vessel[] = [...INITIAL_VESSELS];
 let docks: Dock[] = [...INITIAL_DOCKS];
 let routes: RouteItem[] = [...INITIAL_ROUTES];
@@ -46,10 +68,12 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Users
 app.get('/api/users', (_req: Request, res: Response) => {
+  loadVercelUsers();
   res.json(users);
 });
 
 app.post('/api/auth/login', (req: Request, res: Response) => {
+  loadVercelUsers();
   const { identifier, password, role } = req.body;
   if (!identifier) {
     return res.status(400).json({ error: 'Nama, email, nomor HP, atau NIP wajib diisi.' });

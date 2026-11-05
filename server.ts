@@ -25,6 +25,33 @@ export let supabase = createClient(currentSupabaseUrl, currentSupabaseKey);
 
 // In-Memory & Cache Database
 let users = [...INITIAL_USERS];
+
+const USERS_PERSIST_FILE = path.join(process.cwd(), 'src/data/persisted_users.json');
+
+function loadPersistedUsers() {
+  try {
+    if (fs.existsSync(USERS_PERSIST_FILE)) {
+      const content = fs.readFileSync(USERS_PERSIST_FILE, 'utf-8');
+      const loaded = JSON.parse(content);
+      if (Array.isArray(loaded) && loaded.length > 0) {
+        const existingIds = new Set(loaded.map((u: any) => u.id));
+        const merged = [...loaded, ...INITIAL_USERS.filter((u) => !existingIds.has(u.id))];
+        users = merged;
+      }
+    }
+  } catch (e) {}
+}
+
+function savePersistedUsers() {
+  try {
+    const dir = path.dirname(USERS_PERSIST_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(USERS_PERSIST_FILE, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (e) {}
+}
+
+loadPersistedUsers();
+
 let vessels: Vessel[] = [...INITIAL_VESSELS];
 let docks: Dock[] = [...INITIAL_DOCKS];
 let routes: RouteItem[] = [...INITIAL_ROUTES];
@@ -37,6 +64,7 @@ let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
 
 // Synchronize from Supabase when tables are present
 async function syncFromSupabase() {
+  loadPersistedUsers();
   try {
     const { data: dbDocks, error: dockErr } = await supabase.from('docks').select('*');
     if (!dockErr && dbDocks && dbDocks.length > 0) {
@@ -469,6 +497,7 @@ async function startServer() {
       });
     }
 
+    loadPersistedUsers();
     // 1. Direct search by email, phone, NIP, or full name
     let matchedUser = users.find(
       (u) =>
@@ -532,6 +561,7 @@ async function startServer() {
 
   // Officers Management (Admin only)
   app.post('/api/officers', (req, res) => {
+    loadPersistedUsers();
     const { name, email, phone, password, nip, dockId, dockName } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nama lengkap, email, dan kata sandi wajib diisi.' });
@@ -562,6 +592,7 @@ async function startServer() {
     };
 
     users.unshift(newOfficer);
+    savePersistedUsers();
     addAuditLog('Administrator', 'admin', 'ADD_OFFICER_ACCOUNT', `Admin menambahkan akun petugas baru: ${newOfficer.name} (${newOfficer.nip})`);
     return res.status(201).json(newOfficer);
   });
@@ -572,6 +603,7 @@ async function startServer() {
     if (index === -1) return res.status(404).json({ error: 'Petugas tidak ditemukan.' });
 
     users[index] = { ...users[index], ...req.body, role: 'officer' };
+    savePersistedUsers();
     addAuditLog('Administrator', 'admin', 'UPDATE_OFFICER_ACCOUNT', `Admin memperbarui data petugas: ${users[index].name}`);
     return res.json(users[index]);
   });
@@ -580,6 +612,7 @@ async function startServer() {
     const { id } = req.params;
     const officer = users.find((u) => u.id === id);
     users = users.filter((u) => u.id !== id);
+    savePersistedUsers();
     if (officer) {
       addAuditLog('Administrator', 'admin', 'DELETE_OFFICER_ACCOUNT', `Admin menghapus akun petugas: ${officer.name}`);
     }
@@ -613,6 +646,7 @@ async function startServer() {
     };
 
     users.push(newUser);
+    savePersistedUsers();
     addAuditLog(newUser.name, newUser.role, 'USER_REGISTER', `Pendaftaran akun baru: ${newUser.name} (${newUser.role})`);
 
     // Add welcome notification
@@ -635,6 +669,7 @@ async function startServer() {
 
   // Users Directory & Profile Management
   app.get('/api/users', (_req, res) => {
+    loadPersistedUsers();
     // Return all users (read-only directory for admin)
     res.json(users);
   });

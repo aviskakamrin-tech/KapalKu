@@ -16,6 +16,7 @@ import { supabase } from './supabase';
 // Storage Keys for Official Data
 const STORAGE_KEYS = {
   USERS: 'kapalku_users_kampung_baru_v2',
+  OFFICERS: 'kapalku_created_officers_v2',
   VESSELS: 'kapalku_vessels_kampung_baru_v2',
   DOCKS: 'kapalku_docks_kampung_baru_v2',
   ROUTES: 'kapalku_routes_kampung_baru_v2',
@@ -26,6 +27,29 @@ const STORAGE_KEYS = {
   SOS: 'kapalku_sos_kampung_baru_v2',
   AUDIT: 'kapalku_audit_kampung_baru_v2',
 };
+
+// Officer accounts registry helper
+function getStoredCreatedOfficers(): User[] {
+  try {
+    const raw = localStorage.getItem('kapalku_created_officers_v2');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function persistCreatedOfficer(officer: User): void {
+  try {
+    const existing = getStoredCreatedOfficers();
+    const updated = [
+      officer,
+      ...existing.filter((o) => o.id !== officer.id && o.email?.toLowerCase() !== officer.email?.toLowerCase() && o.nip !== officer.nip),
+    ];
+    localStorage.setItem('kapalku_created_officers_v2', JSON.stringify(updated));
+  } catch (e) {}
+}
 
 // Auto-purge legacy mock data from browser localStorage
 if (typeof window !== 'undefined') {
@@ -235,6 +259,14 @@ export const api = {
       () => {
         // Fallback login logic
         localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+        // Merge stored created officers to guarantee they are never lost
+        const createdOfficers = getStoredCreatedOfficers();
+        for (const co of createdOfficers) {
+          if (!localUsers.some((u) => u.id === co.id || (co.email && u.email?.toLowerCase() === co.email.toLowerCase()) || (co.nip && u.nip?.toLowerCase() === co.nip.toLowerCase()))) {
+            localUsers.unshift(co);
+          }
+        }
+
         const cleanIdLower = cleanId.toLowerCase();
         const cleanPhone = cleanId.replace(/[^0-9]/g, '');
 
@@ -456,54 +488,103 @@ export const api = {
     if (!email.trim()) throw new Error('Email resmi petugas wajib diisi.');
     if (!password || password.length < 6) throw new Error('Kata sandi petugas minimal 6 karakter.');
 
-    return safeFetch(
-      '/api/officers',
-      {
+    localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanNip = data.nip ? data.nip.trim().toLowerCase() : '';
+
+    // Check duplicates locally
+    const existing = localUsers.find(
+      (u) =>
+        u.email?.toLowerCase() === cleanEmail ||
+        (cleanNip && u.nip && u.nip.toLowerCase() === cleanNip)
+    );
+
+    if (existing) {
+      throw new Error('Email atau NIP petugas tersebut sudah digunakan pada sistem.');
+    }
+
+    const newOfficer: User = {
+      id: `usr_ptg_${Date.now()}`,
+      name: name.trim(),
+      email: cleanEmail,
+      phone: phone.trim() || '0812-4211-3344',
+      role: 'officer',
+      password: password,
+      nip: data.nip?.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
+      dockId: data.dockId || 'dock_kasipute',
+      dockName: data.dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+      status: 'Aktif',
+      avatar: `https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80`,
+      createdAt: new Date().toLocaleDateString('id-ID'),
+    };
+
+    // Unconditionally save to local memory, localStorage, and officer registry
+    localUsers = [newOfficer, ...localUsers];
+    setLocal(STORAGE_KEYS.USERS, localUsers);
+    persistCreatedOfficer(newOfficer);
+
+    addAuditLog(
+      'Administrator',
+      'ADD_OFFICER_ACCOUNT',
+      `Admin menambahkan akun Petugas Gate baru: ${newOfficer.name} (${newOfficer.nip}) di pos ${newOfficer.dockName}`
+    );
+
+    // Also sync to server database if available
+    try {
+      const serverRes = await fetch('/api/officers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      },
-      () => {
-        localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
-
-        // Check duplicates
-        const existing = localUsers.find(
-          (u) =>
-            u.email.toLowerCase() === email.trim().toLowerCase() ||
-            (data.nip && u.nip && u.nip.toLowerCase() === data.nip.trim().toLowerCase())
-        );
-
-        if (existing) {
-          throw new Error('Email atau NIP petugas tersebut sudah digunakan pada sistem.');
+        body: JSON.stringify({
+          ...data,
+          id: newOfficer.id,
+          nip: newOfficer.nip,
+        }),
+      });
+      if (serverRes.ok) {
+        const json = await serverRes.json();
+        if (json && json.id) {
+          const finalOfficer = { ...newOfficer, ...json, password };
+          persistCreatedOfficer(finalOfficer);
+          localUsers = [finalOfficer, ...localUsers.filter((u) => u.id !== newOfficer.id)];
+          setLocal(STORAGE_KEYS.USERS, localUsers);
+          return finalOfficer;
         }
-
-        const newOfficer: User = {
-          id: `usr_ptg_${Date.now()}`,
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim() || '0812-4211-3344',
-          role: 'officer',
-          password: password,
-          nip: data.nip?.trim() || `NIP-PTG-${Date.now().toString().slice(-4)}`,
-          dockId: data.dockId || 'dock_kasipute',
-          dockName: data.dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
-          status: 'Aktif',
-          avatar: `https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80`,
-          createdAt: new Date().toLocaleDateString('id-ID'),
-        };
-
-        localUsers = [newOfficer, ...localUsers];
-        setLocal(STORAGE_KEYS.USERS, localUsers);
-
-        addAuditLog(
-          'Administrator',
-          'ADD_OFFICER_ACCOUNT',
-          `Admin menambahkan akun Petugas Gate baru: ${newOfficer.name} (${newOfficer.nip}) di pos ${newOfficer.dockName}`
-        );
-
-        return newOfficer;
       }
-    );
+    } catch (e) {
+      // Offline fallback continues seamlessly
+    }
+
+    return newOfficer;
+  },
+
+  syncOfficerFromToken: (officerData: any): User => {
+    localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+    const officer: User = {
+      id: officerData.id || `usr_ptg_${Date.now()}`,
+      name: (officerData.name || 'Petugas Gate').trim(),
+      email: (officerData.email || '').trim().toLowerCase(),
+      phone: officerData.phone || '0812-4211-3344',
+      role: 'officer',
+      password: officerData.password || 'petugas123',
+      nip: (officerData.nip || `NIP-PTG-${Date.now().toString().slice(-4)}`).trim(),
+      dockId: officerData.dockId || 'dock_kasipute',
+      dockName: officerData.dockName || 'Pelabuhan Ferry Kampung Baru (Kasipute, Bombana)',
+      status: officerData.status || 'Aktif',
+      avatar: officerData.avatar || 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+      createdAt: officerData.createdAt || new Date().toLocaleDateString('id-ID'),
+    };
+    localUsers = [
+      officer,
+      ...localUsers.filter(
+        (u) =>
+          u.id !== officer.id &&
+          u.email?.toLowerCase() !== officer.email?.toLowerCase() &&
+          u.nip?.toLowerCase() !== officer.nip?.toLowerCase()
+      ),
+    ];
+    setLocal(STORAGE_KEYS.USERS, localUsers);
+    persistCreatedOfficer(officer);
+    return officer;
   },
 
   updateOfficerAccount: async (id: string, data: Partial<User>): Promise<User> => {

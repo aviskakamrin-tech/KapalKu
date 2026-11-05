@@ -20,10 +20,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '../../'),
-      'react': resolvePkg('react'),
-      'react-dom': resolvePkg('react-dom'),
-      'react/jsx-runtime': resolvePkg('react/jsx-runtime'),
     },
     dedupe: ['react', 'react-dom'],
+  },
+  server: {
+    fs: {
+      allow: ['..', '../..'],
+    },
   },
 });
