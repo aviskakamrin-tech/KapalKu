@@ -71,6 +71,11 @@ export const UserManager: React.FC<UserManagerProps> = ({
   const [editStatus, setEditStatus] = useState<'Aktif' | 'Nonaktif'>('Aktif');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Modal Hapus Akun Petugas
+  const [officerToDelete, setOfficerToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
+
   // Copy state
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -208,16 +213,21 @@ export const UserManager: React.FC<UserManagerProps> = ({
   };
 
   // Handle Delete Officer
-  const handleDeleteOfficer = async (officer: User) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus akun petugas "${officer.name}" (${officer.nip || officer.email})? Petugas ini tidak akan dapat login lagi.`)) {
-      return;
-    }
-
+  const handleConfirmDeleteOfficer = async () => {
+    if (!officerToDelete) return;
+    setIsDeleting(true);
     try {
-      await api.deleteOfficerAccount(officer.id);
+      await api.deleteOfficerAccount(officerToDelete.id);
+      setDeleteNotice(
+        `Akun petugas "${officerToDelete.name}" (${officerToDelete.nip || officerToDelete.email}) berhasil dihapus dari sistem.`
+      );
+      setOfficerToDelete(null);
       onRefreshData();
+      setTimeout(() => setDeleteNotice(null), 4500);
     } catch (err: any) {
       alert(err.message || 'Gagal menghapus akun petugas.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -528,6 +538,18 @@ Petugas tidak dapat membuat akun sendiri. Klik link di atas untuk langsung tersi
         </div>
       )}
 
+      {deleteNotice && (
+        <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold rounded-2xl flex items-center justify-between animate-in fade-in shadow-xs">
+          <div className="flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{deleteNotice}</span>
+          </div>
+          <button onClick={() => setDeleteNotice(null)} className="text-emerald-700 hover:text-emerald-950 font-bold cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table of Users */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -675,7 +697,7 @@ Petugas tidak dapat membuat akun sendiri. Klik link di atas untuk langsung tersi
                               {/* Tombol Hapus */}
                               <button
                                 type="button"
-                                onClick={() => handleDeleteOfficer(user)}
+                                onClick={() => setOfficerToDelete(user)}
                                 className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all cursor-pointer"
                                 title="Hapus Akun Petugas"
                               >
@@ -1182,6 +1204,68 @@ Petugas tidak dapat membuat akun sendiri. Klik link di atas untuk langsung tersi
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ================= MODAL KONFIRMASI HAPUS AKUN PETUGAS ================= */}
+      {officerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-150 p-6 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                <Trash2 className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <h3 className="font-black text-lg text-slate-900">Hapus Akun Petugas?</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Apakah Anda yakin ingin menghapus akun petugas ini dari sistem pelabuhan? Tindakan ini bersifat permanen.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs font-mono">
+              <div className="flex justify-between border-b border-slate-200 pb-1.5 font-sans font-bold text-slate-800">
+                <span>Nama:</span>
+                <span className="text-slate-900">{officerToDelete.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-slate-500">NIP / ID:</span>
+                <span className="font-bold text-slate-800">{officerToDelete.nip || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-slate-500">Pos Penugasan:</span>
+                <span className="font-sans text-slate-700 font-medium truncate max-w-[180px]">
+                  {officerToDelete.dockName || '-'}
+                </span>
+              </div>
+              <div className="flex justify-between pt-0.5">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-bold text-slate-800">{officerToDelete.email}</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Petugas tidak akan dapat melakukan login lagi ke portal Scanner Boarding Pass setelah akun dihapus.</span>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setOfficerToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOfficer}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md shadow-red-600/30 transition-all flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? 'Menghapus...' : 'Ya, Hapus Akun'}</span>
               </button>
             </div>
           </div>

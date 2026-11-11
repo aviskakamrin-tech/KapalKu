@@ -29,13 +29,16 @@ import {
   ExternalLink,
   Lock,
   Share2,
+  RotateCcw,
 } from 'lucide-react';
+import { RefundApprovalManager } from '../admin/RefundApprovalManager';
 
 interface OfficerScannerPageProps {
   currentUser: User | null;
   reservations: Reservation[];
   schedules: Schedule[];
   onRefreshData: () => void;
+  initialTab?: 'scanner' | 'refunds';
 }
 
 export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
@@ -43,7 +46,17 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
   reservations,
   schedules,
   onRefreshData,
+  initialTab = 'scanner',
 }) => {
+  const [officerTab, setOfficerTab] = useState<'scanner' | 'refunds'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setOfficerTab(initialTab);
+    }
+  }, [initialTab]);
+
+  const pendingRefundsCount = reservations.filter((r) => r.refundStatus === 'Diajukan').length;
   const [scanInput, setScanInput] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraPermissionStatus, setCameraPermissionStatus] = useState<'prompt' | 'granted' | 'denied' | 'unknown'>('unknown');
@@ -471,13 +484,17 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
           <div>
             <div className="inline-flex items-center space-x-2 px-3 py-1 bg-cyan-500/30 border border-cyan-400/40 rounded-full text-cyan-200 text-xs font-bold mb-2">
               <ScanLine className="w-3.5 h-3.5 text-cyan-300" />
-              <span>TERMINAL PETUGAS GATE DERMAGA</span>
+              <span>TERMINAL PETUGAS GATE & DERMAGA</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Pemindai Kamera & Verifikasi Tiket Boarding
+              {officerTab === 'scanner'
+                ? 'Pemindai Kamera & Verifikasi Tiket Boarding'
+                : 'Pusat Persetujuan Refund & Pembatalan Tiket'}
             </h1>
             <p className="text-xs sm:text-sm text-cyan-100/90 mt-1 max-w-2xl">
-              Pindai QR Code atau Barcode pada boarding pass penumpang menggunakan kamera perangkat secara instan untuk verifikasi manifes dan otorisasi gate.
+              {officerTab === 'scanner'
+                ? 'Pindai QR Code atau Barcode pada boarding pass penumpang menggunakan kamera perangkat secara instan untuk verifikasi manifes dan otorisasi gate.'
+                : 'Kelola permohonan pembatalan tiket dari penumpang dan proses pengembalian dana tunai loket maupun transfer secara langsung.'}
             </p>
           </div>
 
@@ -488,15 +505,59 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
               </div>
               <div>
                 <div className="text-xs font-bold text-white">{currentUser?.name || 'Petugas Jaga'}</div>
-                <div className="text-[10px] text-cyan-200 font-mono">Status: On-Duty (Gate Boarding)</div>
+                <div className="text-[10px] text-cyan-200 font-mono">
+                  {currentUser?.dockName ? `Pos: ${currentUser.dockName}` : 'Status: On-Duty (Gate Boarding)'}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Scanner Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Module Switcher Tabs for Officer */}
+      <div className="flex items-center space-x-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setOfficerTab('scanner')}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center space-x-2 transition-all cursor-pointer ${
+            officerTab === 'scanner'
+              ? 'bg-white text-cyan-950 shadow-md border border-cyan-200'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <ScanLine className="w-4 h-4 text-cyan-600" />
+          <span>Pemindai Boarding Pass (Scanner Gate)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOfficerTab('refunds')}
+          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center space-x-2 transition-all cursor-pointer ${
+            officerTab === 'refunds'
+              ? 'bg-white text-indigo-950 shadow-md border border-indigo-200'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <RotateCcw className="w-4 h-4 text-amber-500" />
+          <span>Refund & Pembatalan Tiket</span>
+          {pendingRefundsCount > 0 && (
+            <span className="px-2 py-0.5 bg-amber-500 text-slate-950 rounded-full text-[10px] font-black animate-pulse">
+              {pendingRefundsCount} Menunggu
+            </span>
+          )}
+        </button>
+      </div>
+
+      {officerTab === 'refunds' ? (
+        <RefundApprovalManager
+          reservations={reservations}
+          currentUser={currentUser}
+          onRefreshData={onRefreshData}
+        />
+      ) : (
+        <>
+          {/* Main Scanner Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Scanner & Input (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
           {/* Scanner Card */}
@@ -913,6 +974,8 @@ export const OfficerScannerPage: React.FC<OfficerScannerPageProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

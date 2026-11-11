@@ -619,26 +619,38 @@ export const api = {
   },
 
   deleteOfficerAccount: async (id: string): Promise<void> => {
-    return safeFetch(
-      `/api/officers/${id}`,
-      {
-        method: 'DELETE',
-      },
-      () => {
-        localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
-        const officer = localUsers.find((u) => u.id === id);
-        localUsers = localUsers.filter((u) => u.id !== id);
-        setLocal(STORAGE_KEYS.USERS, localUsers);
+    // 1. Unconditionally remove from local memory & localStorage
+    localUsers = getLocal(STORAGE_KEYS.USERS, INITIAL_USERS);
+    const officer = localUsers.find((u) => u.id === id);
+    localUsers = localUsers.filter((u) => u.id !== id);
+    setLocal(STORAGE_KEYS.USERS, localUsers);
 
-        if (officer) {
-          addAuditLog(
-            'Administrator',
-            'DELETE_OFFICER_ACCOUNT',
-            `Admin menghapus akun Petugas: ${officer.name} (NIP: ${officer.nip || '-'})`
-          );
-        }
-      }
-    );
+    // 2. Unconditionally remove from created officers registry so it never re-appears
+    try {
+      const stored = getStoredCreatedOfficers().filter(
+        (u) => u.id !== id && (officer ? u.email?.toLowerCase() !== officer.email?.toLowerCase() && u.nip !== officer.nip : true)
+      );
+      localStorage.setItem('kapalku_created_officers_v2', JSON.stringify(stored));
+    } catch (e) {}
+
+    // 3. Record audit log
+    if (officer) {
+      addAuditLog(
+        'Administrator',
+        'DELETE_OFFICER_ACCOUNT',
+        `Admin menghapus akun Petugas: ${officer.name} (NIP: ${officer.nip || '-'})`
+      );
+    }
+
+    // 4. Delete from Supabase if connected
+    try {
+      await supabase.from('users').delete().eq('id', id);
+    } catch (e) {}
+
+    // 5. Delete on backend server
+    try {
+      await fetch(`/api/officers/${id}`, { method: 'DELETE' });
+    } catch (e) {}
   },
 
   updateUserProfile: async (id: string, data: Partial<User>, requesterId?: string): Promise<User> => {
@@ -1606,6 +1618,7 @@ export const api = {
       bankName: string;
       accountNumber: string;
       accountHolder: string;
+      refundAmount?: number;
     }
   ): Promise<Reservation> => {
     return safeFetch(
@@ -1633,7 +1646,7 @@ export const api = {
             bankName: refundData.bankName,
             accountNumber: refundData.accountNumber,
             accountHolder: refundData.accountHolder,
-            refundAmount: localReservations[idx].totalPrice,
+            refundAmount: refundData.refundAmount ?? localReservations[idx].totalPrice,
           },
         };
         setLocal(STORAGE_KEYS.RESERVATIONS, localReservations);

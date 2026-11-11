@@ -33,6 +33,7 @@ import {
   FileSpreadsheet,
   Share2,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 
 // Helper to parse role and default tab from VITE_APP_ROLE environment variable or current URL
@@ -443,13 +444,14 @@ export default function App() {
               />
             )}
 
-            {/* ROLE 2: PETUGAS SCANNER GATE */}
-            {activeTab === 'officer_scanner' && (
+            {/* ROLE 2: PETUGAS SCANNER GATE & REFUND */}
+            {(activeTab === 'officer_scanner' || activeTab === 'officer_refunds') && (
               <OfficerScannerPage
                 currentUser={currentUser}
                 reservations={reservations}
                 schedules={schedules}
                 onRefreshData={loadAllData}
+                initialTab={activeTab === 'officer_refunds' ? 'refunds' : 'scanner'}
               />
             )}
 
@@ -570,6 +572,19 @@ export default function App() {
                 >
                   <ScanLine className="w-5 h-5" />
                   <span>Scanner Barcode</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('officer_refunds')}
+                  className={`flex flex-col items-center space-y-0.5 text-[10px] font-bold cursor-pointer relative ${
+                    activeTab === 'officer_refunds' ? 'text-cyan-600' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  <span>Refund & Batal</span>
+                  {reservations.filter((r) => r.refundStatus === 'Diajukan').length > 0 && (
+                    <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  )}
                 </button>
 
                 <button

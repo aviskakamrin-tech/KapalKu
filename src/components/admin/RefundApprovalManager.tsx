@@ -26,6 +26,7 @@ import {
   Hash,
   Send,
   Eye,
+  Plus,
 } from 'lucide-react';
 
 interface RefundApprovalManagerProps {
@@ -45,6 +46,18 @@ export const RefundApprovalManager: React.FC<RefundApprovalManagerProps> = ({
   // Action Modals State
   const [ticketToApprove, setTicketToApprove] = useState<Reservation | null>(null);
   const [ticketToReject, setTicketToReject] = useState<Reservation | null>(null);
+
+  // Counter / Loket Refund Modal State
+  const [isCounterRefundModalOpen, setIsCounterRefundModalOpen] = useState(false);
+  const [counterTicketSearch, setCounterTicketSearch] = useState('');
+  const [counterSelectedTicket, setCounterSelectedTicket] = useState<Reservation | null>(null);
+  const [counterRefundMethod, setCounterRefundMethod] = useState<'CASH_LOKET' | 'BANK' | 'EWALLET'>('CASH_LOKET');
+  const [counterBankName, setCounterBankName] = useState('Kasir Tunai Loket Pelabuhan');
+  const [counterAccountNumber, setCounterAccountNumber] = useState('LOKET-CASH');
+  const [counterAccountHolder, setCounterAccountHolder] = useState('');
+  const [counterReason, setCounterReason] = useState('Permintaan pembatalan tiket langsung di pos loket dermaga oleh penumpang.');
+  const [counterAutoApprove, setCounterAutoApprove] = useState(true);
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
   
   // Form input states
   const [transferProofRef, setTransferProofRef] = useState('');
@@ -138,26 +151,125 @@ export const RefundApprovalManager: React.FC<RefundApprovalManagerProps> = ({
     }
   };
 
+  const handleConfirmCounterRefund = async () => {
+    if (!counterSelectedTicket) {
+      alert('Pilih tiket yang ingin dibatalkan terlebih dahulu.');
+      return;
+    }
+    setIsSubmittingCounter(true);
+    try {
+      const actorName = currentUser?.name || (currentUser?.role === 'officer' ? 'Petugas Loket Dermaga' : 'Administrator');
+      const refundAmt = counterSelectedTicket.totalPrice;
+      
+      // 1. Request ticket refund
+      await api.requestTicketRefund(counterSelectedTicket.id, {
+        bankName: counterRefundMethod === 'CASH_LOKET' ? 'Kasir Tunai Loket Pelabuhan' : counterBankName,
+        accountNumber: counterRefundMethod === 'CASH_LOKET' ? 'LOKET-CASH' : counterAccountNumber,
+        accountHolder: counterAccountHolder.trim() || counterSelectedTicket.userName,
+        reason: counterReason.trim() || 'Permintaan pembatalan tiket langsung di pos loket dermaga.',
+        refundAmount: refundAmt,
+      });
+
+      // 2. If auto-approve is checked, immediately approve it
+      if (counterAutoApprove) {
+        const refCode = counterRefundMethod === 'CASH_LOKET' 
+          ? `LOKET-CASH-${Date.now().toString().slice(-6)}` 
+          : `TRF-${counterBankName.toUpperCase().replace(/\s+/g, '')}-${Date.now().toString().slice(-6)}`;
+        
+        await api.approveRefund(counterSelectedTicket.id, {
+          transferProofRef: refCode,
+          adminNote: counterRefundMethod === 'CASH_LOKET'
+            ? `Dana tiket Rp ${refundAmt.toLocaleString('id-ID')} telah diserahkan tunai di loket dermaga oleh ${actorName}.`
+            : `Dana tiket Rp ${refundAmt.toLocaleString('id-ID')} telah diproses refund via transfer ${counterBankName}.`,
+          officerName: actorName,
+        });
+
+        setActionSuccessMsg(`Tiket ${counterSelectedTicket.bookingCode} berhasil dibatalkan dan dana Rp ${refundAmt.toLocaleString('id-ID')} langsung disetujui & dicairkan!`);
+      } else {
+        setActionSuccessMsg(`Permohonan refund tiket ${counterSelectedTicket.bookingCode} berhasil dicatat dan masuk ke antrean verifikasi.`);
+      }
+
+      setIsCounterRefundModalOpen(false);
+      setCounterSelectedTicket(null);
+      setCounterTicketSearch('');
+      onRefreshData();
+      setTimeout(() => setActionSuccessMsg(null), 5000);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memproses pembatalan tiket di loket.');
+    } finally {
+      setIsSubmittingCounter(false);
+    }
+  };
+
+  const eligibleForCounterRefund = reservations.filter(
+    (r) =>
+      r.paymentStatus === 'Lunas' &&
+      r.checkInStatus !== 'Sudah Check-In (Boarded)' &&
+      r.refundStatus !== 'Disetujui'
+  );
+
+  const searchedEligibleTickets = eligibleForCounterRefund.filter((t) => {
+    if (!counterTicketSearch.trim()) return true;
+    const q = counterTicketSearch.toLowerCase();
+    return (
+      t.bookingCode.toLowerCase().includes(q) ||
+      t.userName.toLowerCase().includes(q) ||
+      (t.userPhone && t.userPhone.includes(q)) ||
+      (t.vesselName && t.vesselName.toLowerCase().includes(q))
+    );
+  });
+
+  const isOfficerRole = currentUser?.role === 'officer';
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-[#0F2C59] p-6 sm:p-7 rounded-3xl text-white shadow-xl border border-indigo-900/40">
+      <div className={`p-6 sm:p-7 rounded-3xl text-white shadow-xl border ${
+        isOfficerRole
+          ? 'bg-gradient-to-r from-slate-950 via-[#0B2447] to-[#19376D] border-cyan-800/40'
+          : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-[#0F2C59] border-indigo-900/40'
+      }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-amber-500/20 border border-amber-400/30 rounded-full text-amber-300 text-xs font-bold mb-2">
+            <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-bold mb-2 border ${
+              isOfficerRole
+                ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300'
+                : 'bg-amber-500/20 border-amber-400/30 text-amber-300'
+            }`}>
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>MODUL KEUANGAN & PEMBATALAN</span>
+              <span>
+                {isOfficerRole
+                  ? 'TERMINAL PETUGAS: PUSAT REFUND & PEMBATALAN TIKET'
+                  : 'MODUL KEUANGAN & PEMBATALAN (PORTAL ADMIN)'}
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black">
-              Persetujuan Pembatalan Tiket & Refund Dana
+              {isOfficerRole
+                ? 'Persetujuan Pembatalan Tiket & Refund Loket Dermaga'
+                : 'Persetujuan Pembatalan Tiket & Refund Dana'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Verifikasi permohonan pembatalan tiket dari penumpang feri, periksa kelengkapan nomor rekening bank/e-wallet, setujui pengembalian dana, dan simpan bukti transfer referensi pembayaran.
+              {isOfficerRole
+                ? 'Petugas dermaga memiliki wewenang penuh yang sama dengan admin untuk menyetujui refund online dari penumpang, membatalkan tiket langsung di loket, dan memproses pengembalian dana.'
+                : 'Verifikasi permohonan pembatalan tiket dari penumpang feri, periksa kelengkapan nomor rekening bank/e-wallet, setujui pengembalian dana, dan simpan bukti transfer referensi pembayaran.'}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 text-center min-w-[130px]">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setIsCounterRefundModalOpen(true);
+                setCounterSelectedTicket(null);
+                setCounterTicketSearch('');
+              }}
+              className="px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-amber-500/30 flex items-center space-x-2 cursor-pointer transition-all active:scale-95"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>+ Batalkan Tiket di Loket</span>
+            </button>
+
+            <div className="bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15 text-center min-w-[120px]">
               <div className="text-[10px] text-amber-300 uppercase font-bold tracking-wider">Menunggu Respon</div>
               <div className="text-2xl font-black text-white mt-0.5">
                 {pendingRefunds.length} <span className="text-xs font-normal text-slate-300">Tiket</span>
@@ -673,6 +785,305 @@ export const RefundApprovalManager: React.FC<RefundApprovalManagerProps> = ({
                 >
                   <X className="w-4 h-4" />
                   <span>{isProcessing ? 'Memproses...' : 'Tolak Refund Tiket Ini'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ================= MODAL PEMBATALAN & REFUND DI LOKET ================= */}
+      {isCounterRefundModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 p-5 text-slate-950 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-slate-950 stroke-[2.5]" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-950">
+                    Formulir Pembatalan & Refund Tiket di Loket
+                  </h3>
+                  <p className="text-xs text-slate-900/80 font-medium">
+                    Proses pembatalan tiket penumpang langsung di pos dermaga / administrasi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCounterRefundModalOpen(false)}
+                className="p-1 rounded-xl text-slate-900 hover:bg-black/10 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Step 1: Pilih Tiket */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  1. Pilih Tiket Penumpang yang Dibatalkan:
+                </label>
+
+                {!counterSelectedTicket ? (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={counterTicketSearch}
+                        onChange={(e) => setCounterTicketSearch(e.target.value)}
+                        placeholder="Cari kode booking (KPK-...), nama penumpang, atau no HP..."
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100 bg-slate-50/50">
+                      {searchedEligibleTickets.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-slate-500">
+                          Tidak ada tiket aktif yang cocok atau belum dibatalkan.
+                        </div>
+                      ) : (
+                        searchedEligibleTickets.slice(0, 10).map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setCounterSelectedTicket(t);
+                              setCounterAccountHolder(t.userName);
+                            }}
+                            className="w-full text-left p-3 hover:bg-amber-50 transition-colors flex items-center justify-between gap-2 cursor-pointer group"
+                          >
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono font-black text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                  {t.bookingCode}
+                                </span>
+                                <span className="font-bold text-xs text-slate-900">{t.userName}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {t.vesselName} • {t.originDockName} ➔ {t.destinationDockName} ({t.travelDate})
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-black text-xs text-emerald-700 block">
+                                Rp {t.totalPrice.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[10px] font-bold text-amber-700 group-hover:underline">
+                                Pilih Tiket ➔
+                              </span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-amber-50/80 border border-amber-300 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-black text-sm text-indigo-800 bg-white px-2 py-0.5 rounded-lg border border-indigo-200">
+                          {counterSelectedTicket.bookingCode}
+                        </span>
+                        <span className="font-extrabold text-sm text-slate-900">
+                          {counterSelectedTicket.userName}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        {counterSelectedTicket.vesselName} • Rute: {counterSelectedTicket.originDockName} ➔ {counterSelectedTicket.destinationDockName}
+                      </div>
+                      <div className="text-xs font-black text-emerald-800 pt-0.5">
+                        Total Dana Tiket: Rp {counterSelectedTicket.totalPrice.toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCounterSelectedTicket(null)}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 cursor-pointer"
+                    >
+                      Ganti Tiket
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Metode Pengembalian Dana */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  2. Metode Pengembalian Dana (Refund):
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCounterRefundMethod('CASH_LOKET');
+                      setCounterBankName('Kasir Tunai Loket Pelabuhan');
+                      setCounterAccountNumber('LOKET-CASH');
+                    }}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                      counterRefundMethod === 'CASH_LOKET'
+                        ? 'bg-amber-500 text-slate-950 font-black border-amber-600 ring-2 ring-amber-400/40 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 text-xs font-bold'
+                    }`}
+                  >
+                    <Wallet className="w-4 h-4 mx-auto mb-1" />
+                    <span className="text-xs block">Tunai / Cash</span>
+                    <span className="text-[10px] opacity-80 block">Di Loket</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCounterRefundMethod('BANK');
+                      setCounterBankName('Bank BRI');
+                      setCounterAccountNumber('');
+                    }}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                      counterRefundMethod === 'BANK'
+                        ? 'bg-amber-500 text-slate-950 font-black border-amber-600 ring-2 ring-amber-400/40 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 text-xs font-bold'
+                    }`}
+                  >
+                    <Building2 className="w-4 h-4 mx-auto mb-1" />
+                    <span className="text-xs block">Transfer Bank</span>
+                    <span className="text-[10px] opacity-80 block">Rekening</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCounterRefundMethod('EWALLET');
+                      setCounterBankName('DANA');
+                      setCounterAccountNumber('');
+                    }}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                      counterRefundMethod === 'EWALLET'
+                        ? 'bg-amber-500 text-slate-950 font-black border-amber-600 ring-2 ring-amber-400/40 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 text-xs font-bold'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4 mx-auto mb-1" />
+                    <span className="text-xs block">E-Wallet</span>
+                    <span className="text-[10px] opacity-80 block">DANA / OVO</span>
+                  </button>
+                </div>
+
+                {counterRefundMethod !== 'CASH_LOKET' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 animate-in fade-in">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                        Nama Bank / E-Wallet:
+                      </label>
+                      <input
+                        type="text"
+                        value={counterBankName}
+                        onChange={(e) => setCounterBankName(e.target.value)}
+                        placeholder="Contoh: BCA / BRI / Mandiri / DANA"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                        Nomor Rekening / No E-Wallet:
+                      </label>
+                      <input
+                        type="text"
+                        value={counterAccountNumber}
+                        onChange={(e) => setCounterAccountNumber(e.target.value)}
+                        placeholder="Nomor rekening penerima"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                        Atas Nama Penerima:
+                      </label>
+                      <input
+                        type="text"
+                        value={counterAccountHolder}
+                        onChange={(e) => setCounterAccountHolder(e.target.value)}
+                        placeholder="Nama pemilik rekening/akun"
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3: Alasan Pembatalan */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                <label className="text-xs font-black text-slate-800 uppercase tracking-wider block">
+                  3. Alasan Pembatalan:
+                </label>
+                <select
+                  value={counterReason}
+                  onChange={(e) => setCounterReason(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium outline-none"
+                >
+                  <option value="Permintaan pembatalan tiket langsung di pos loket dermaga oleh penumpang.">
+                    Permintaan langsung di pos loket dermaga oleh penumpang
+                  </option>
+                  <option value="Penumpang mengalami kendala mendesak / perubahan rencana perjalanan mendadak.">
+                    Perubahan rencana perjalanan mendadak / mendesak
+                  </option>
+                  <option value="Penumpang terlambat tiba di dermaga sebelum jadwal keberangkatan kapal.">
+                    Terlambat tiba sebelum jam keberangkatan
+                  </option>
+                  <option value="Kondisi cuaca buruk / rekomendasi Syahbandar di pelabuhan.">
+                    Kondisi cuaca buruk / arahan Syahbandar
+                  </option>
+                </select>
+                <textarea
+                  value={counterReason}
+                  onChange={(e) => setCounterReason(e.target.value)}
+                  rows={2}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs outline-none"
+                  placeholder="Keterangan tambahan..."
+                />
+              </div>
+
+              {/* Step 4: Auto Approve Option */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5">
+                <input
+                  type="checkbox"
+                  id="autoApproveCheck"
+                  checked={counterAutoApprove}
+                  onChange={(e) => setCounterAutoApprove(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="autoApproveCheck" className="text-xs text-emerald-950 font-bold cursor-pointer">
+                  Langsung Setujui & Lunasi Refund (Rekomendasi untuk Kasir Loket)
+                  <span className="block font-normal text-[11px] text-emerald-800 mt-0.5">
+                    Tiket akan langsung ditandai "Refund Disetujui", kuota kapal dilepas kembali, dan bukti pembayaran loket diterbitkan.
+                  </span>
+                </label>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCounterRefundModalOpen(false)}
+                  disabled={isSubmittingCounter}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={!counterSelectedTicket || isSubmittingCounter}
+                  onClick={handleConfirmCounterRefund}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>
+                    {isSubmittingCounter
+                      ? 'Memproses...'
+                      : counterAutoApprove
+                      ? 'Batalkan & Cairkan Refund Sekarang'
+                      : 'Ajukan Permohonan Refund'}
+                  </span>
                 </button>
               </div>
             </div>

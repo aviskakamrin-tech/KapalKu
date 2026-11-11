@@ -92,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {portalRole === 'admin'
                   ? 'Manajemen Tarif, Rute, Dermaga & Manifes Pelayaran'
                   : portalRole === 'officer'
-                  ? 'Pemindai Barcode Gate & Validasi Check-In Manifes'
+                  ? 'Pemindai Barcode Gate, Validasi Manifes & Refund Tiket'
                   : 'Informasi Laut, Jadwal & Reservasi Tiket Terpadu'}
               </p>
             </div>
